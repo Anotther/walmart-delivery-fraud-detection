@@ -4,6 +4,7 @@ Loads environment variables and defines paths.
 """
 import os
 from pathlib import Path
+from urllib.parse import quote_plus
 from dotenv import load_dotenv
 
 # Load environment variables
@@ -30,9 +31,9 @@ DATABASE_CONFIG = {
     "password": os.getenv("POSTGRES_PASSWORD", ""),
 }
 
-# SQLAlchemy connection string
+# SQLAlchemy connection string (password is URL-encoded to handle special chars)
 DATABASE_URL = (
-    f"postgresql://{DATABASE_CONFIG['user']}:{DATABASE_CONFIG['password']}"
+    f"postgresql://{DATABASE_CONFIG['user']}:{quote_plus(DATABASE_CONFIG['password'])}"
     f"@{DATABASE_CONFIG['host']}:{DATABASE_CONFIG['port']}/{DATABASE_CONFIG['database']}"
 )
 

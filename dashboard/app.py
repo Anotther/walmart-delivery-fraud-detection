@@ -83,17 +83,28 @@ def main():
 
     # Load data
     try:
-        from src.etl.extractors import extract_all
-        from src.etl.transformers import transform_all
+        from src.database.connection import (
+            load_orders, load_drivers, load_customers,
+            test_connection, get_summary_stats
+        )
         from src.features.aggregations import get_overall_statistics
 
-        with st.spinner("Loading data..."):
-            raw_data = extract_all()
-            data = transform_all(raw_data)
-
-            orders = data["orders"]
-            drivers = data["drivers"]
-            customers = data["customers"]
+        with st.spinner("Loading data from PostgreSQL..."):
+            # Test database connection first
+            if not test_connection():
+                st.warning("Database connection failed. Falling back to CSV files...")
+                from src.etl.extractors import extract_all
+                from src.etl.transformers import transform_all
+                raw_data = extract_all()
+                data = transform_all(raw_data)
+                orders = data["orders"]
+                drivers = data["drivers"]
+                customers = data["customers"]
+            else:
+                # Load from PostgreSQL
+                orders = load_orders()
+                drivers = load_drivers()
+                customers = load_customers()
 
             stats = get_overall_statistics(orders, drivers, customers)
 
