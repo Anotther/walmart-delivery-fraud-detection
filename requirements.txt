@@ -1,0 +1,28 @@
+# Core
+pandas
+numpy
+sqlalchemy
+psycopg2-binary
+python-dotenv
+
+# ML
+scikit-learn
+mlflow
+
+# Visualization
+plotly
+matplotlib
+seaborn
+
+# Dashboard
+streamlit
+
+# Notebooks
+jupyter
+ipykernel
+
+# Testing
+pytest
+
+# Utils
+python-dateutil
