@@ -24,5 +24,7 @@ ipykernel
 # Testing
 pytest
 
+
 # Utils
 python-dateutil
+streamlit-option-menu
