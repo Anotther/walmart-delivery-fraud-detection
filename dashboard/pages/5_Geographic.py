@@ -8,6 +8,7 @@ from html import escape
 from pathlib import Path
 from typing import Dict, List, Tuple
 
+import numpy as np
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
@@ -70,6 +71,123 @@ RISK_LABELS = {
 def get_geo_data() -> pd.DataFrame:
     cache = get_default_cache()
     return cache.get_regional_summary()
+
+
+def _query_param_value(name: str) -> str:
+    value = st.query_params.get(name)
+    if value is None:
+        return ""
+    if isinstance(value, list):
+        return str(value[0]) if value else ""
+    return str(value)
+
+
+@st.cache_data(ttl=600)
+def get_scoped_geo_data(product_id: str, product_category: str) -> pd.DataFrame:
+    """
+    Build regional metrics scoped to Product Analysis drill-down context.
+    Returns empty DataFrame when no scoped events are available.
+    """
+    if not product_id and not product_category:
+        return pd.DataFrame()
+
+    cache = get_default_cache()
+    workspace = cache.get_product_analysis_workspace()
+    facts = workspace.get("missing_facts", pd.DataFrame()).copy()
+
+    if facts.empty:
+        return pd.DataFrame()
+
+    if product_category:
+        facts = facts[facts["category"].astype(str) == str(product_category)]
+    if product_id:
+        facts = facts[facts["product_id"].astype(str) == str(product_id)]
+
+    if facts.empty:
+        return pd.DataFrame()
+
+    order_scope = (
+        facts[
+            [
+                "order_id",
+                "region",
+                "order_amount",
+                "items_delivered",
+                "driver_id",
+                "customer_id",
+            ]
+        ]
+        .drop_duplicates(subset=["order_id"])
+        .copy()
+    )
+
+    regional_orders = (
+        order_scope.groupby("region", as_index=False)
+        .agg(
+            total_orders=("order_id", "nunique"),
+            total_revenue=("order_amount", "sum"),
+            items_delivered=("items_delivered", "sum"),
+            unique_drivers=("driver_id", "nunique"),
+            unique_customers=("customer_id", "nunique"),
+        )
+    )
+
+    regional_missing = (
+        facts.groupby("region", as_index=False)
+        .agg(
+            items_missing=("missing_item_id", "count"),
+            orders_with_missing=("order_id", "nunique"),
+        )
+    )
+
+    regional = regional_orders.merge(regional_missing, on="region", how="left")
+    regional["items_missing"] = pd.to_numeric(regional["items_missing"], errors="coerce").fillna(0.0)
+    regional["orders_with_missing"] = pd.to_numeric(
+        regional["orders_with_missing"], errors="coerce"
+    ).fillna(0.0)
+    regional["items_delivered"] = pd.to_numeric(regional["items_delivered"], errors="coerce").fillna(0.0)
+
+    regional["total_items"] = regional["items_delivered"] + regional["items_missing"]
+    regional["missing_rate"] = np.where(
+        regional["total_items"] > 0,
+        (regional["items_missing"] / regional["total_items"]) * 100,
+        0.0,
+    )
+    regional["pct_orders_with_missing"] = np.where(
+        regional["total_orders"] > 0,
+        (regional["orders_with_missing"] / regional["total_orders"]) * 100,
+        0.0,
+    )
+    regional["orders_per_driver"] = np.where(
+        regional["unique_drivers"] > 0,
+        regional["total_orders"] / regional["unique_drivers"],
+        0.0,
+    )
+    regional["orders_per_customer"] = np.where(
+        regional["unique_customers"] > 0,
+        regional["total_orders"] / regional["unique_customers"],
+        0.0,
+    )
+    total_revenue = float(regional["total_revenue"].sum())
+    regional["revenue_share"] = np.where(
+        total_revenue > 0,
+        (regional["total_revenue"] / total_revenue) * 100,
+        0.0,
+    )
+    regional["risk_rank"] = regional["missing_rate"].rank(ascending=False, method="dense").astype(int)
+
+    cols = [
+        "region",
+        "total_orders",
+        "total_revenue",
+        "items_missing",
+        "orders_with_missing",
+        "missing_rate",
+        "pct_orders_with_missing",
+        "revenue_share",
+        "risk_rank",
+    ]
+    return regional[cols].sort_values("missing_rate", ascending=False)
 
 
 def load_geographic_page_css() -> None:
@@ -639,8 +757,28 @@ def main() -> None:
     )
     st.markdown("---")
 
+    scope_product = _query_param_value("product_id")
+    scope_category = _query_param_value("product_category")
+    scope_source = _query_param_value("source_page")
+
     with st.spinner("Loading regional data..."):
-        regional_df = get_geo_data()
+        if scope_product or scope_category:
+            regional_df = get_scoped_geo_data(scope_product, scope_category)
+            if regional_df.empty:
+                st.warning(
+                    "No regional records for incoming Product Analysis scope. "
+                    "Falling back to full regional dataset."
+                )
+                regional_df = get_geo_data()
+            else:
+                st.info(
+                    "Scoped geographic view active: "
+                    f"product_id={scope_product or 'All'} | "
+                    f"category={scope_category or 'All'} "
+                    f"(source: {scope_source or 'product_analysis'})"
+                )
+        else:
+            regional_df = get_geo_data()
 
     if regional_df.empty:
         st.info("No regional data available.")

@@ -166,7 +166,16 @@ class DashboardCache:
         orders['month_name'] = orders['order_date'].dt.month_name()
         orders['day_of_week'] = orders['order_date'].dt.day_name()
         orders['day_of_week_num'] = orders['order_date'].dt.dayofweek
-        orders['delivery_hour'] = orders['order_date'].dt.hour
+        # delivery_hour is provided by source data; parse robustly to integer hour.
+        hour_series = pd.to_datetime(
+            orders['delivery_hour'].astype(str),
+            format="%H:%M:%S",
+            errors='coerce'
+        ).dt.hour
+        if hour_series.isna().all():
+            # Fallback for already-numeric or non-standard hour formats
+            hour_series = pd.to_numeric(orders['delivery_hour'], errors='coerce')
+        orders['delivery_hour'] = hour_series.fillna(0).astype(int)
         return orders
 
     # -------------------------------------------------------------------------
@@ -678,6 +687,171 @@ class DashboardCache:
         self._set_cache(cache_key, result)
         return result
 
+    def get_product_analysis_workspace(self) -> Dict[str, Any]:
+        """
+        Get consolidated workspace for Product Analysis page.
+
+        Returns:
+            Dictionary with source dataframes, linked facts, and metadata
+            required for cross-domain product intelligence.
+        """
+        cache_key = 'product_analysis_workspace'
+        cached = self._get_cache(cache_key)
+        if cached is not None:
+            return cached
+
+        orders = self._load_orders_with_features()
+        products = load_products()
+        missing_items = load_missing_items()
+
+        product_summary = self.get_product_summary()
+        customer_summary = self.get_customer_summary()
+        driver_summary = self.get_driver_summary()
+        regional_summary = self.get_regional_summary()
+        overview_metrics = self.get_overview_metrics()
+        temporal_summary = self.get_advanced_temporal()
+        pattern_summary = self.get_patterns_analysis()
+        model_metrics = self.get_model_performance_metrics()
+
+        orders_cols = [
+            'order_id',
+            'order_date',
+            'order_amount',
+            'region',
+            'items_delivered',
+            'items_missing',
+            'total_items',
+            'missing_rate',
+            'delivery_hour',
+            'day_of_week',
+            'day_of_week_num',
+            'month',
+            'month_name',
+            'driver_id',
+            'customer_id',
+            'created_at',
+        ]
+        available_orders_cols = [col for col in orders_cols if col in orders.columns]
+
+        missing_facts = missing_items.merge(
+            orders[available_orders_cols],
+            on='order_id',
+            how='left',
+        )
+
+        products_cols = ['product_id', 'product_name', 'category', 'price']
+        available_products_cols = [col for col in products_cols if col in products.columns]
+        missing_facts = missing_facts.merge(
+            products[available_products_cols],
+            on='product_id',
+            how='left',
+            suffixes=('', '_catalog'),
+        )
+
+        if 'product_name_catalog' in missing_facts.columns:
+            missing_facts['product_name'] = missing_facts['product_name'].fillna(
+                missing_facts['product_name_catalog']
+            )
+            missing_facts = missing_facts.drop(columns=['product_name_catalog'])
+
+        if 'category_catalog' in missing_facts.columns:
+            missing_facts['category'] = missing_facts['category'].fillna(
+                missing_facts['category_catalog']
+            )
+            missing_facts = missing_facts.drop(columns=['category_catalog'])
+
+        if 'price' in missing_facts.columns:
+            missing_facts['price'] = pd.to_numeric(missing_facts['price'], errors='coerce')
+            if 'product_price' in missing_facts.columns:
+                missing_facts['price'] = pd.to_numeric(
+                    missing_facts['product_price'], errors='coerce'
+                ).fillna(missing_facts['price'])
+        elif 'product_price' in missing_facts.columns:
+            missing_facts['price'] = pd.to_numeric(missing_facts['product_price'], errors='coerce')
+
+        created_at_col = (
+            orders['created_at']
+            if 'created_at' in orders.columns
+            else pd.Series(dtype='datetime64[ns]')
+        )
+        created_at_col = pd.to_datetime(created_at_col, errors='coerce')
+        last_source_update = (
+            created_at_col.max().isoformat()
+            if not created_at_col.dropna().empty
+            else datetime.now().isoformat()
+        )
+
+        source_metadata = {
+            'orders': {
+                'source': 'walmart_fraud.orders',
+                'rows': int(len(orders)),
+                'last_updated': last_source_update,
+                'transformations': [
+                    'order_date -> datetime',
+                    'total_items = items_delivered + items_missing',
+                    'missing_rate (%) and temporal fields (month/day/hour)',
+                ],
+            },
+            'products': {
+                'source': 'walmart_fraud.products + walmart_fraud.product_categories',
+                'rows': int(len(products)),
+                'last_updated': last_source_update,
+                'transformations': [
+                    'source typo normalizado em ETL: produc_id -> product_id',
+                    'category_name join aplicado no load_products',
+                    'price parseado para numeric',
+                ],
+            },
+            'missing_items': {
+                'source': 'walmart_fraud.order_missing_items',
+                'rows': int(len(missing_items)),
+                'last_updated': last_source_update,
+                'transformations': [
+                    'estrutura pivot original normalizada em linhas (item_position)',
+                    'enriquecimento com product_name/category/price via joins',
+                    'link com pedidos para contexto temporal/geografico',
+                ],
+            },
+            'customers': {
+                'source': 'walmart_fraud.customers + customer_summary',
+                'rows': int(len(customer_summary)),
+                'last_updated': last_source_update,
+                'transformations': [
+                    'claim_rate e risk_score derivados por cliente',
+                    'segmentacao de gasto (Low Value -> Premium)',
+                ],
+            },
+            'drivers': {
+                'source': 'walmart_fraud.drivers + driver_summary',
+                'rows': int(len(driver_summary)),
+                'last_updated': last_source_update,
+                'transformations': [
+                    'missing_rate e pct_orders_with_missing derivados por motorista',
+                    'risk_score composto (0-100)',
+                ],
+            },
+        }
+
+        result = {
+            'orders': orders,
+            'products': products,
+            'missing_items': missing_items,
+            'missing_facts': missing_facts,
+            'product_summary': product_summary,
+            'customer_summary': customer_summary,
+            'driver_summary': driver_summary,
+            'regional_summary': regional_summary,
+            'overview_metrics': overview_metrics,
+            'temporal_summary': temporal_summary,
+            'pattern_summary': pattern_summary,
+            'model_metrics': model_metrics,
+            'source_metadata': source_metadata,
+            'generated_at': datetime.now().isoformat(),
+        }
+
+        self._set_cache(cache_key, result)
+        return result
+
 
     def get_patterns_analysis(self) -> Dict:
         """
@@ -711,7 +885,9 @@ class DashboardCache:
         if cached is not None:
             return cached
 
-        orders = self._load_orders_with_features()
+        # Use raw orders because temporal analyzer expects delivery_hour in time format.
+        orders = load_orders()
+        orders['order_date'] = pd.to_datetime(orders['order_date'], errors='coerce')
         result = get_temporal_summary(orders)
         self._set_cache(cache_key, result)
         return result

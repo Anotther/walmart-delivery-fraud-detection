@@ -17,16 +17,17 @@ import streamlit as st
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
+from src.config.viz_theme import PROJECT_THEME
 from src.dashboard.components import COLORS, insight_card, kpi_card, load_css, render_sidebar
 from src.dashboard.data_cache import get_default_cache
 
 RISK_ORDER = ["Low", "Medium", "High", "Critical"]
 SEGMENT_ORDER = ["Low Value", "Medium Value", "High Value", "Premium"]
 RISK_COLORS = {
-    "Low": COLORS["success"],
-    "Medium": COLORS["walmart_yellow"],
-    "High": COLORS["warning"],
-    "Critical": COLORS["critical"],
+    "Low": PROJECT_THEME["risk_colors"]["Low"],
+    "Medium": PROJECT_THEME["risk_colors"]["Medium"],
+    "High": PROJECT_THEME["risk_colors"]["High"],
+    "Critical": PROJECT_THEME["risk_colors"]["Critical"],
 }
 SIGNATURE_META = {
     "Always Claiming": ("Immediate validation", COLORS["critical"]),
@@ -56,79 +57,123 @@ def load_customers_page_css() -> None:
     st.markdown(
         """
         <style>
-          :root {
-            --cx-surface: #FFFFFF;
-            --cx-surface-soft: #F8FAFC;
-            --cx-text-strong: #0F172A;
-            --cx-text-body: #1E293B;
-            --cx-text-muted: #475569;
-            --cx-border: #CBD5E1;
-            --cx-border-soft: #E2E8F0;
-            --cx-focus: #1D4ED8;
-            --cx-shadow: 0 1px 2px rgba(15, 23, 42, 0.06), 0 8px 20px rgba(15, 23, 42, 0.06);
+          .text-muted {
+            color: var(--text-secondary) !important;
           }
 
-          .text-muted {
-            color: var(--cx-text-muted) !important;
+          .customer-section-subtitle {
+            color: var(--text-secondary);
+            font-size: 0.86rem;
+            margin-top: -0.2rem;
+            margin-bottom: 0.55rem;
           }
 
           .kpi-card {
-            border-color: var(--cx-border) !important;
-            box-shadow: var(--cx-shadow);
+            border-color: var(--border-light) !important;
+            box-shadow: var(--shadow-sm) !important;
           }
 
           [data-testid="stDataFrame"] {
-            border-color: var(--cx-border) !important;
-            box-shadow: var(--cx-shadow);
+            border-color: var(--border-light) !important;
+            box-shadow: var(--shadow-sm) !important;
           }
 
           [data-testid="stMetricLabel"] p {
-            color: var(--cx-text-body) !important;
+            color: var(--text-primary) !important;
             font-weight: 600 !important;
           }
 
           [data-testid="stMetricDelta"] {
-            color: var(--cx-text-body) !important;
+            color: var(--text-primary) !important;
           }
 
           button[role="tab"] {
-            color: var(--cx-text-body) !important;
+            color: var(--text-primary) !important;
           }
 
           button[role="tab"][aria-selected="true"] {
-            color: #003695 !important;
+            color: var(--walmart-blue-dark) !important;
           }
 
-          div[data-baseweb="select"] > div {
-            border-color: var(--cx-border) !important;
+          div[data-baseweb="select"] > div,
+          div[data-baseweb="input"] > div {
+            border-color: var(--border-light) !important;
           }
 
-          div[data-baseweb="select"] > div:focus-within {
-            border-color: var(--cx-focus) !important;
-            box-shadow: 0 0 0 1px var(--cx-focus) !important;
+          div[data-baseweb="select"] > div:focus-within,
+          div[data-baseweb="input"] > div:focus-within {
+            border-color: var(--walmart-blue) !important;
+            box-shadow: 0 0 0 1px var(--walmart-blue) !important;
           }
 
           .customer-queue-card {
-            border: 1px solid var(--cx-border) !important;
-            box-shadow: var(--cx-shadow);
+            background: var(--bg-card);
+            border: 1px solid var(--border-light) !important;
+            box-shadow: var(--shadow-sm) !important;
           }
 
           .customer-queue-card .consistency-header {
-            background: var(--cx-surface-soft) !important;
-            border-bottom: 1px solid var(--cx-border) !important;
+            background: #fafbfc !important;
+            border-bottom: 1px solid var(--border-light) !important;
+            padding: 0.82rem 0.95rem !important;
+          }
+
+          .customer-queue-header-main {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            gap: 0.7rem;
+            flex-wrap: wrap;
           }
 
           .customer-queue-title {
-            font-size: 0.98rem;
+            font-size: 0.95rem;
             font-weight: 700;
-            color: var(--cx-text-strong);
+            color: var(--walmart-blue-dark);
             margin: 0;
           }
 
           .customer-queue-subtitle {
             margin-top: 0.2rem;
-            font-size: 0.82rem;
-            color: var(--cx-text-muted);
+            font-size: 0.8rem;
+            color: var(--text-secondary);
+          }
+
+          .customer-queue-legend {
+            display: flex;
+            gap: 0.3rem;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+            align-items: center;
+          }
+
+          .customer-legend-chip {
+            display: inline-flex;
+            align-items: center;
+            border-radius: 999px;
+            padding: 0.08rem 0.44rem;
+            font-size: 0.7rem;
+            font-weight: 700;
+            border: 1px solid transparent;
+            white-space: nowrap;
+          }
+
+          .customer-legend-chip.critical {
+            background: #fee2e2;
+            border-color: #fca5a5;
+            color: #991b1b;
+          }
+
+          .customer-legend-chip.warning {
+            background: #ffedd5;
+            border-color: #fdba74;
+            color: #9a3412;
+          }
+
+          .customer-legend-chip.stable {
+            background: #dcfce7;
+            border-color: #86efac;
+            color: #166534;
           }
 
           .customer-queue-table {
@@ -141,19 +186,19 @@ def load_customers_page_css() -> None:
             font-size: 0.73rem;
             text-transform: uppercase;
             letter-spacing: 0.03em;
-            color: #334155;
+            color: #64748b;
             font-weight: 700;
-            padding: 0.55rem 0.65rem;
+            padding: 0.5rem 0.58rem;
             background: #f8fafc;
-            border-bottom: 1px solid var(--cx-border);
+            border-bottom: 1px solid var(--border-light);
             white-space: nowrap;
           }
 
           .customer-queue-table tbody td {
-            font-size: 0.85rem;
-            color: var(--cx-text-body);
-            padding: 0.56rem 0.65rem;
-            border-bottom: 1px solid var(--cx-border-soft);
+            font-size: 0.83rem;
+            color: #0f172a;
+            padding: 0.48rem 0.58rem;
+            border-bottom: 1px solid #f1f5f9;
             vertical-align: middle;
             white-space: nowrap;
           }
@@ -213,7 +258,7 @@ def load_customers_page_css() -> None:
             display: inline-flex;
             align-items: center;
             border-radius: 999px;
-            padding: 0.12rem 0.48rem;
+            padding: 0.1rem 0.46rem;
             font-size: 0.72rem;
             font-weight: 700;
             border: 1px solid #cbd5e1;
@@ -246,17 +291,26 @@ def load_customers_page_css() -> None:
           }
 
           .customer-case-header {
-            background: var(--cx-surface);
-            border: 1px solid var(--cx-border);
+            background: var(--bg-card);
+            border: 1px solid var(--border-light);
             border-radius: 12px;
-            padding: 0.8rem 1rem;
-            box-shadow: var(--cx-shadow);
+            padding: 0.75rem 0.95rem;
+            box-shadow: var(--shadow-sm);
             margin-bottom: 0.9rem;
           }
         </style>
         """,
         unsafe_allow_html=True,
     )
+
+
+def _query_param_value(name: str) -> str:
+    value = st.query_params.get(name)
+    if value is None:
+        return ""
+    if isinstance(value, list):
+        return str(value[0]) if value else ""
+    return str(value)
 
 
 def _normalize_0_1(series: pd.Series) -> pd.Series:
@@ -396,6 +450,36 @@ def get_customer_workspace() -> Dict[str, pd.DataFrame]:
     drivers["driver_missing_rate"] = pd.to_numeric(drivers["driver_missing_rate"], errors="coerce").fillna(0.0)
 
     return {"customers": customers, "orders": orders, "drivers": drivers}
+
+
+@st.cache_data(ttl=600)
+def get_product_scope_customer_ids(product_id: str, product_category: str) -> set[str]:
+    """Get impacted customers from Product Analysis drill-down params."""
+    if not product_id and not product_category:
+        return set()
+
+    cache = get_default_cache()
+    workspace = cache.get_product_analysis_workspace()
+    missing_items = workspace.get("missing_items", pd.DataFrame()).copy()
+    orders = workspace.get("orders", pd.DataFrame()).copy()
+
+    if missing_items.empty or orders.empty:
+        return set()
+
+    if product_category:
+        missing_items = missing_items[missing_items["category"].astype(str) == str(product_category)]
+    if product_id:
+        missing_items = missing_items[missing_items["product_id"].astype(str) == str(product_id)]
+
+    if missing_items.empty:
+        return set()
+
+    order_ids = set(missing_items["order_id"].astype(str))
+    scoped_orders = orders[orders["order_id"].astype(str).isin(order_ids)].copy()
+    if scoped_orders.empty:
+        return set()
+
+    return set(scoped_orders["customer_id"].astype(str))
 
 
 def apply_filters(
@@ -554,10 +638,17 @@ def render_queue_table(queue_df: pd.DataFrame) -> None:
     table_html = f"""
     <div class="consistency-wrap customer-queue-card">
       <div class="consistency-header">
-        <div>
-          <p class="customer-queue-title">Customer Investigation Queue</p>
-          <div class="customer-queue-subtitle">
-            Priority + SLA + risk labels support triage without relying on color alone.
+        <div class="customer-queue-header-main">
+          <div>
+            <p class="customer-queue-title">Customer Investigation Queue</p>
+            <div class="customer-queue-subtitle">
+              Priority + SLA + risk labels support triage without relying on color alone.
+            </div>
+          </div>
+          <div class="customer-queue-legend">
+            <span class="customer-legend-chip critical">Critical · 4h SLA</span>
+            <span class="customer-legend-chip warning">High/Medium · 12-48h SLA</span>
+            <span class="customer-legend-chip stable">Low · 72h SLA</span>
           </div>
         </div>
       </div>
@@ -624,26 +715,26 @@ def main() -> None:
 
     header_col, refresh_col = st.columns([6, 1])
     with header_col:
-        st.markdown("### Customer Intelligence")
+        st.markdown("### Operational Intelligence")
         st.markdown(
             """
-            <div style="display:flex; justify-content:space-between; align-items:flex-end; margin-bottom:0.75rem;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.6rem;">
               <div>
-                <h1 style="margin:0; font-size:2.25rem;">Customer Case Workbench</h1>
+                <h1 style="margin:0; font-size:2.5rem;">Customer Intelligence Hub</h1>
                 <p class="text-muted" style="margin-top:0.25rem;">
-                  Dedicated triage flow for repeat claims, behavior signatures, and customer-driver links.
+                  Customer-level triage for repeat claims, behavior signatures, and customer-driver links.
                 </p>
               </div>
-              <div>
-                <span class="badge badge-success">Customer Focus</span>
+              <div style="text-align: right;">
+                <span class="badge badge-success">Customer Scope</span>
               </div>
             </div>
             """,
             unsafe_allow_html=True,
         )
     with refresh_col:
-        st.markdown("<div style='height:1.65rem;'></div>", unsafe_allow_html=True)
-        if st.button("Refresh", use_container_width=True):
+        st.markdown("<div style='height:1.5rem;'></div>", unsafe_allow_html=True)
+        if st.button("Refresh Data", use_container_width=True):
             cache = get_default_cache()
             cache.refresh_all()
             st.cache_data.clear()
@@ -655,6 +746,27 @@ def main() -> None:
     customers = workspace["customers"]
     orders = workspace["orders"]
     drivers = workspace["drivers"]
+
+    scope_product = _query_param_value("product_id")
+    scope_category = _query_param_value("product_category")
+    scope_source = _query_param_value("source_page")
+    if scope_product or scope_category:
+        scoped_customer_ids = get_product_scope_customer_ids(scope_product, scope_category)
+        if scoped_customer_ids:
+            customers = customers[customers["customer_id"].astype(str).isin(scoped_customer_ids)].copy()
+            orders = orders[orders["customer_id"].astype(str).isin(scoped_customer_ids)].copy()
+            st.info(
+                "Scoped customer analysis active: "
+                f"product_id={scope_product or 'All'} | "
+                f"category={scope_category or 'All'} | "
+                f"customers={len(customers)} "
+                f"(source: {scope_source or 'product_analysis'})"
+            )
+        else:
+            st.warning(
+                "No impacted customers found for incoming Product Analysis scope. "
+                "Showing empty scoped view."
+            )
 
     if customers.empty:
         st.info("No customer data available.")
@@ -675,6 +787,11 @@ def main() -> None:
     with filter_col3:
         segments = [seg for seg in SEGMENT_ORDER if seg in customers["spending_segment"].unique()]
         selected_segment = st.selectbox("Spending segment", options=["All"] + segments, index=0)
+
+    st.markdown(
+        "<div class='customer-section-subtitle'>Scope filters drive KPIs, charts, queue prioritization, and case details.</div>",
+        unsafe_allow_html=True,
+    )
 
     filtered = apply_filters(
         customer_df=customers,
@@ -710,6 +827,10 @@ def main() -> None:
     matrix_col, scatter_col = st.columns([1.15, 1.85])
     with matrix_col:
         st.markdown("#### Segment x Risk Matrix")
+        st.markdown(
+            "<div class='customer-section-subtitle'>Customer concentration by spending segment and risk tier.</div>",
+            unsafe_allow_html=True,
+        )
         matrix = build_segment_matrix(filtered if not filtered.empty else customers)
         if matrix.empty:
             st.info("No matrix data for selected filters.")
@@ -723,11 +844,12 @@ def main() -> None:
                 color_continuous_scale=["#F3F4F6", COLORS["walmart_blue_light"]],
             )
             fig_matrix.update_layout(
+                template="walmart_fraud",
                 plot_bgcolor="white",
                 paper_bgcolor="white",
                 font_family="Inter",
                 font_color="#1E293B",
-                margin=dict(t=15, r=8, b=8, l=8),
+                margin=dict(t=12, r=8, b=8, l=8),
                 xaxis=dict(
                     showline=True,
                     linecolor="#CBD5E1",
@@ -740,13 +862,24 @@ def main() -> None:
                 ),
                 coloraxis_colorbar=dict(
                     tickfont=dict(color="#334155"),
-                    titlefont=dict(color="#334155"),
+                    title=dict(text="Customers", font=dict(color="#334155")),
                 ),
             )
-            st.plotly_chart(fig_matrix, width="stretch")
+            fig_matrix.update_traces(
+                hovertemplate=(
+                    "Segment: %{y}<br>"
+                    "Risk: %{x}<br>"
+                    "Customers: %{z}<extra></extra>"
+                )
+            )
+            st.plotly_chart(fig_matrix, use_container_width=True)
 
     with scatter_col:
         st.markdown("#### Risk Concentration by Spend")
+        st.markdown(
+            "<div class='customer-section-subtitle'>Bubble size = order volume; guide lines show baseline and high-value threshold.</div>",
+            unsafe_allow_html=True,
+        )
         if filtered.empty:
             st.info("No customers in current scope.")
         else:
@@ -787,19 +920,27 @@ def main() -> None:
                 annotation_text="High-value threshold",
             )
             fig_scatter.update_layout(
+                template="walmart_fraud",
                 plot_bgcolor="white",
                 paper_bgcolor="white",
                 font_family="Inter",
                 font_color="#1E293B",
-                legend_title_text="Risk Category",
                 margin=dict(t=10, r=8, b=8, l=8),
+                legend=dict(
+                    orientation="h",
+                    yanchor="bottom",
+                    y=1.02,
+                    xanchor="left",
+                    x=0,
+                    title_text="Risk Tier",
+                ),
                 xaxis=dict(
                     showgrid=True,
                     gridcolor="#E2E8F0",
                     showline=True,
                     linecolor="#CBD5E1",
                     tickfont=dict(color="#334155"),
-                    titlefont=dict(color="#334155"),
+                    title=dict(font=dict(color="#334155")),
                 ),
                 yaxis=dict(
                     showgrid=True,
@@ -807,8 +948,9 @@ def main() -> None:
                     showline=True,
                     linecolor="#CBD5E1",
                     tickfont=dict(color="#334155"),
-                    titlefont=dict(color="#334155"),
+                    title=dict(font=dict(color="#334155")),
                 ),
+                hovermode="closest",
             )
             fig_scatter.update_traces(
                 marker=dict(line=dict(width=0.6, color="#E2E8F0")),
@@ -820,14 +962,17 @@ def main() -> None:
                     "Priority: %{customdata[2]:.1f}<extra></extra>"
                 ),
             )
-            st.plotly_chart(fig_scatter, width="stretch")
+            st.plotly_chart(fig_scatter, use_container_width=True)
 
     st.markdown("---")
 
     queue = build_case_queue(filtered)
 
     st.markdown("#### Investigation Queue")
-    st.caption("Review prioritized customers, then open a case to continue the investigation workbench.")
+    st.markdown(
+        "<div class='customer-section-subtitle'>Executive queue for triage with priority tier, SLA, and latest activity.</div>",
+        unsafe_allow_html=True,
+    )
     render_queue_table(queue)
 
     if queue.empty:
@@ -846,8 +991,8 @@ def main() -> None:
     exploratory_view = queue.copy()
     exploratory_view["SLA"] = exploratory_view["risk_category"].map(SLA_BY_RISK).fillna("72h")
     exploratory_view["Gap"] = (exploratory_view["priority_score"] - exploratory_view["risk_score"]).round(2)
-    exploratory_view["Claim Rate"] = exploratory_view["claim_rate"].round(2)
-    exploratory_view["Claim Orders"] = exploratory_view["orders_with_claims"].astype(int)
+    exploratory_view["Rate"] = exploratory_view["claim_rate"].round(2)
+    exploratory_view["Volume"] = exploratory_view["orders_with_claims"].astype(int)
     exploratory_view["Period"] = pd.to_datetime(
         exploratory_view["last_order_date"], errors="coerce"
     ).dt.strftime("%Y-%m-%d")
@@ -861,12 +1006,12 @@ def main() -> None:
                     "priority_tier",
                     "SLA",
                     "Gap",
-                    "Claim Rate",
-                    "Claim Orders",
+                    "Rate",
+                    "Volume",
                     "Period",
                 ]
             ].rename(columns={"priority_tier": "Priority Tier"}),
-            width="stretch",
+            use_container_width=True,
             hide_index=True,
         )
 
@@ -892,6 +1037,10 @@ def main() -> None:
     )
 
     st.markdown(f"#### Case Detail: {selected_row['customer_name']}")
+    st.markdown(
+        "<div class='customer-section-subtitle'>Behavior signature, claim history, and driver-link evidence for the selected case.</div>",
+        unsafe_allow_html=True,
+    )
     d1, d2, d3 = st.columns([1.1, 1.1, 1.1])
     with d1:
         case_risk = str(selected_row["risk_category"])
@@ -933,6 +1082,10 @@ def main() -> None:
     )
 
     with tab_timeline:
+        st.markdown(
+            "<div class='customer-section-subtitle'>Monthly claim orders and missing-rate trend versus portfolio baseline.</div>",
+            unsafe_allow_html=True,
+        )
         if monthly.empty:
             st.info("No timeline data for this customer.")
         else:
@@ -967,40 +1120,39 @@ def main() -> None:
             )
 
             fig_timeline.update_layout(
+                template="walmart_fraud",
                 plot_bgcolor="white",
                 paper_bgcolor="white",
                 font_family="Inter",
                 font_color="#1E293B",
                 margin=dict(t=24, l=8, r=8, b=8),
-                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+                legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0),
                 xaxis=dict(
                     showgrid=True,
                     gridcolor="#E2E8F0",
                     showline=True,
                     linecolor="#CBD5E1",
                     tickfont=dict(color="#334155"),
-                    titlefont=dict(color="#334155"),
+                    title=dict(font=dict(color="#334155")),
                 ),
                 yaxis=dict(
-                    title="Claim Orders",
+                    title=dict(text="Claim Orders", font=dict(color="#334155")),
                     showgrid=True,
                     gridcolor="#E2E8F0",
                     showline=True,
                     linecolor="#CBD5E1",
                     tickfont=dict(color="#334155"),
-                    titlefont=dict(color="#334155"),
                 ),
                 yaxis2=dict(
-                    title="Claim Rate (%)",
+                    title=dict(text="Claim Rate (%)", font=dict(color="#334155")),
                     overlaying="y",
                     side="right",
                     showgrid=False,
                     tickfont=dict(color="#334155"),
-                    titlefont=dict(color="#334155"),
                 ),
                 hovermode="x unified",
             )
-            st.plotly_chart(fig_timeline, width="stretch")
+            st.plotly_chart(fig_timeline, use_container_width=True)
 
             last_window = monthly.tail(3)
             trend = "increasing" if last_window["claim_rate"].is_monotonic_increasing else "unstable"
@@ -1015,6 +1167,10 @@ def main() -> None:
             )
 
     with tab_links:
+        st.markdown(
+            "<div class='customer-section-subtitle'>Top driver links sorted by interaction volume and pair missing-rate.</div>",
+            unsafe_allow_html=True,
+        )
         if links.empty:
             st.info("No customer-driver links available.")
         else:
@@ -1038,26 +1194,34 @@ def main() -> None:
                 labels={"interactions": "Interactions", "driver_name": "Driver"},
             )
             fig_links.update_layout(
+                template="walmart_fraud",
                 plot_bgcolor="white",
                 paper_bgcolor="white",
                 font_family="Inter",
                 font_color="#1E293B",
                 margin=dict(t=10, l=8, r=8, b=8),
-                legend_title_text="Link Status",
+                legend=dict(
+                    orientation="h",
+                    yanchor="bottom",
+                    y=1.02,
+                    xanchor="left",
+                    x=0,
+                    title_text="Link Status",
+                ),
                 xaxis=dict(
                     showgrid=True,
                     gridcolor="#E2E8F0",
                     showline=True,
                     linecolor="#CBD5E1",
                     tickfont=dict(color="#334155"),
-                    titlefont=dict(color="#334155"),
+                    title=dict(font=dict(color="#334155")),
                 ),
                 yaxis=dict(
                     showgrid=False,
                     showline=True,
                     linecolor="#CBD5E1",
                     tickfont=dict(color="#334155"),
-                    titlefont=dict(color="#334155"),
+                    title=dict(font=dict(color="#334155")),
                 ),
             )
             fig_links.update_traces(
@@ -1068,7 +1232,7 @@ def main() -> None:
                     "Driver Risk Score: %{customdata[1]:.2f}<extra></extra>"
                 )
             )
-            st.plotly_chart(fig_links, width="stretch")
+            st.plotly_chart(fig_links, use_container_width=True)
 
             links_view = links.copy()
             links_view["Rate"] = links_view["pair_missing_rate"].round(2)
@@ -1096,7 +1260,7 @@ def main() -> None:
                         "driver_risk_category": "Driver Risk",
                     }
                 ),
-                width="stretch",
+                use_container_width=True,
                 hide_index=True,
             )
 

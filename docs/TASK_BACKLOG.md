@@ -37,3 +37,4 @@ Este documento serve como a fonte única da verdade para a sincronização entre
 - [x] `[BACKEND]` Implementação inicial do cache de dados (`src/dashboard/data_cache.py`).
 - [x] `[DATA]` Geração dos notebooks de análise e preparação de dados.
 - [x] `[FRONTEND]` Refatoração da Página de Análise de Clientes com Customer Case Workbench (`dashboard/pages/4_Customers.py`).
+- [x] `[FRONTEND]` Padronização visual da página Customers com baseline Geographic (`dashboard/pages/4_Customers.py`).

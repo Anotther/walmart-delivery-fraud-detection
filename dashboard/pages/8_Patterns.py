@@ -4,6 +4,9 @@ Patterns Page - Advanced fraud pattern detection and algorithms.
 import streamlit as st
 import sys
 from pathlib import Path
+from typing import Any, Dict
+
+import numpy as np
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
@@ -31,19 +34,250 @@ def get_patterns_data():
     # We also need feature data for correlation
     # We can get this from driver/customer summaries
     drivers = cache.get_driver_summary()
-    return patterns, temporal, drivers
+    workspace = cache.get_product_analysis_workspace()
+    trends = cache.get_temporal_trends()
+    return patterns, temporal, drivers, workspace, trends
+
+
+def _query_param(name: str) -> str:
+    value = st.query_params.get(name)
+    if value is None:
+        return ""
+    if isinstance(value, list):
+        return str(value[0]) if value else ""
+    return str(value)
+
+
+def _safe_ratio(numerator: float, denominator: float) -> float:
+    if denominator == 0:
+        return 0.0
+    return float(numerator / denominator)
+
+
+def build_scope_context(
+    workspace: Dict[str, Any],
+    fallback_temporal: Dict[str, Any],
+    category_filter: str,
+    product_filter: str,
+) -> Dict[str, Any]:
+    """
+    Build scoped temporal context for Product -> Patterns drill-down.
+    Returns empty dict when no valid scope is available.
+    """
+    if not category_filter and not product_filter:
+        return {}
+
+    missing_items = workspace.get("missing_items", pd.DataFrame()).copy()
+    orders = workspace.get("orders", pd.DataFrame()).copy()
+
+    if missing_items.empty or orders.empty:
+        return {}
+
+    if category_filter:
+        missing_items = missing_items[missing_items["category"].astype(str) == str(category_filter)]
+    if product_filter:
+        missing_items = missing_items[missing_items["product_id"].astype(str) == str(product_filter)]
+
+    if missing_items.empty:
+        return {}
+
+    scope_order_ids = set(missing_items["order_id"].astype(str))
+    scoped_orders = orders[orders["order_id"].astype(str).isin(scope_order_ids)].copy()
+    if scoped_orders.empty:
+        return {}
+
+    scoped_orders["day_of_week"] = scoped_orders["day_of_week"].fillna("Unknown")
+    scoped_orders["day_of_week_num"] = pd.to_numeric(
+        scoped_orders["day_of_week_num"], errors="coerce"
+    ).fillna(99)
+    scoped_orders["delivery_hour"] = pd.to_numeric(
+        scoped_orders["delivery_hour"], errors="coerce"
+    ).fillna(0).astype(int)
+
+    daily = (
+        scoped_orders.groupby(["day_of_week", "day_of_week_num"], as_index=False)
+        .agg(
+            orders=("order_id", "count"),
+            items_delivered=("items_delivered", "sum"),
+            items_missing=("items_missing", "sum"),
+        )
+        .sort_values("day_of_week_num")
+    )
+    daily["missing_rate"] = np.where(
+        (daily["items_delivered"] + daily["items_missing"]) > 0,
+        (daily["items_missing"] / (daily["items_delivered"] + daily["items_missing"])) * 100,
+        0.0,
+    )
+
+    hourly = (
+        scoped_orders.groupby("delivery_hour", as_index=False)
+        .agg(
+            orders=("order_id", "count"),
+            items_delivered=("items_delivered", "sum"),
+            items_missing=("items_missing", "sum"),
+        )
+        .rename(columns={"delivery_hour": "hour"})
+        .sort_values("hour")
+    )
+    hourly["missing_rate"] = np.where(
+        (hourly["items_delivered"] + hourly["items_missing"]) > 0,
+        (hourly["items_missing"] / (hourly["items_delivered"] + hourly["items_missing"])) * 100,
+        0.0,
+    )
+
+    monthly = (
+        scoped_orders.groupby(["month", "month_name"], as_index=False)
+        .agg(
+            orders=("order_id", "count"),
+            items_delivered=("items_delivered", "sum"),
+            items_missing=("items_missing", "sum"),
+        )
+        .sort_values("month")
+    )
+    monthly["missing_rate"] = np.where(
+        (monthly["items_delivered"] + monthly["items_missing"]) > 0,
+        (monthly["items_missing"] / (monthly["items_delivered"] + monthly["items_missing"])) * 100,
+        0.0,
+    )
+
+    def _threshold_anomalies(df: pd.DataFrame, period_col: str, metric_col: str, label: str):
+        if df.empty:
+            return []
+        avg = float(df[metric_col].mean())
+        std = float(df[metric_col].std())
+        threshold = avg + (2 * std if std > 0 else 0)
+        alerts = []
+        for _, row in df[df[metric_col] > threshold].iterrows():
+            payload = {
+                "missing_rate": float(row[metric_col]),
+                "threshold": threshold,
+            }
+            payload[label] = row[period_col]
+            alerts.append(payload)
+        return alerts
+
+    anomalies = {
+        "daily": _threshold_anomalies(daily, "day_of_week", "missing_rate", "day"),
+        "hourly": _threshold_anomalies(hourly, "hour", "missing_rate", "hour"),
+        "monthly": _threshold_anomalies(monthly, "month_name", "missing_rate", "period"),
+    }
+
+    if len(monthly) >= 2:
+        first_ref = float(monthly.head(max(1, len(monthly) // 2))["missing_rate"].mean())
+        last_ref = float(monthly.tail(max(1, len(monthly) // 2))["missing_rate"].mean())
+        change_pct = _safe_ratio(last_ref - first_ref, first_ref) * 100 if first_ref > 0 else 0.0
+        direction = "increasing" if change_pct > 0.5 else "decreasing" if change_pct < -0.5 else "stable"
+    else:
+        change_pct = float(fallback_temporal.get("trend", {}).get("change_pct", 0.0))
+        direction = str(fallback_temporal.get("trend", {}).get("direction", "stable"))
+
+    worst_day = (
+        str(daily.loc[daily["missing_rate"].idxmax(), "day_of_week"])
+        if not daily.empty
+        else str(fallback_temporal.get("patterns", {}).get("worst_day", "Unknown"))
+    )
+
+    scope_driver_ids = set(scoped_orders["driver_id"].astype(str))
+    scope_customer_ids = set(scoped_orders["customer_id"].astype(str))
+    scope_regions = set(scoped_orders["region"].astype(str))
+    scope_pairs = set(
+        (scoped_orders["driver_id"].astype(str) + "_" + scoped_orders["customer_id"].astype(str)).tolist()
+    )
+
+    return {
+        "daily": daily,
+        "hourly": hourly,
+        "monthly": monthly,
+        "anomalies": {
+            "total": int(sum(len(v) for v in anomalies.values())),
+            "details": anomalies,
+        },
+        "trend": {
+            "direction": direction,
+            "change_pct": float(change_pct),
+        },
+        "patterns": {
+            "worst_day": worst_day,
+        },
+        "scope_meta": {
+            "orders": int(len(scoped_orders)),
+            "missing_items": int(len(missing_items)),
+            "category": category_filter or "All",
+            "product_id": product_filter or "All",
+        },
+        "scope_ids": {
+            "drivers": scope_driver_ids,
+            "customers": scope_customer_ids,
+            "regions": scope_regions,
+            "pairs": scope_pairs,
+        },
+    }
 
 try:
+    scope_category = _query_param("product_category")
+    scope_product = _query_param("product_id")
+    scope_source = _query_param("source_page")
+
     with st.spinner("Running pattern recognition algorithms..."):
-        patterns, temporal, drivers_df = get_patterns_data()
+        patterns, temporal, drivers_df, workspace, trends = get_patterns_data()
+
+    scope_context = build_scope_context(
+        workspace=workspace,
+        fallback_temporal=temporal,
+        category_filter=scope_category,
+        product_filter=scope_product,
+    )
+
+    active_temporal = scope_context if scope_context else temporal
+    active_patterns = patterns
+
+    if scope_context:
+        ids = scope_context.get("scope_ids", {})
+        driver_ids = ids.get("drivers", set())
+        customer_ids = ids.get("customers", set())
+        region_ids = ids.get("regions", set())
+        pair_ids = ids.get("pairs", set())
+
+        active_patterns = {
+            "driver_patterns": [
+                p for p in patterns.get("driver_patterns", [])
+                if str(getattr(p, "entity_id", "")) in driver_ids
+            ],
+            "customer_patterns": [
+                p for p in patterns.get("customer_patterns", [])
+                if str(getattr(p, "entity_id", "")) in customer_ids
+            ],
+            "collusion_patterns": [
+                p
+                for p in patterns.get("collusion_patterns", [])
+                if f"{p.details.get('driver_id')}_{p.details.get('customer_id')}" in pair_ids
+            ],
+            "regional_patterns": [
+                p for p in patterns.get("regional_patterns", [])
+                if str(getattr(p, "entity_id", "")) in region_ids
+            ],
+        }
+
+        if not drivers_df.empty and "driver_id" in drivers_df.columns:
+            drivers_df = drivers_df[drivers_df["driver_id"].astype(str).isin(driver_ids)]
+
+        scope_meta = scope_context.get("scope_meta", {})
+        st.info(
+            "Scoped pattern analysis active: "
+            f"category={scope_meta.get('category', 'All')} | "
+            f"product_id={scope_meta.get('product_id', 'All')} | "
+            f"orders={scope_meta.get('orders', 0)} | "
+            f"missing_items={scope_meta.get('missing_items', 0)} "
+            f"(source: {scope_source or 'product_analysis'})"
+        )
 
     # 1. Temporal Patterns
     # --------------------
     st.header("1. Temporal Patterns")
     
     # Metrics
-    temp_anomalies = temporal['anomalies']
-    trend = temporal['trend']
+    temp_anomalies = active_temporal['anomalies']
+    trend = active_temporal['trend']
     
     col_t1, col_t2, col_t3, col_t4 = st.columns(4)
     with col_t1:
@@ -54,25 +288,15 @@ try:
     with col_t3:
         kpi_card("Temporal Anomalies", f"{temp_anomalies['total']}", color=COLORS['critical'])
     with col_t4:
-        kpi_card("Peak Risk Period", f"{temporal['patterns']['worst_day']}s", color=COLORS['walmart_yellow'])
+        kpi_card("Peak Risk Period", f"{active_temporal['patterns']['worst_day']}s", color=COLORS['walmart_yellow'])
 
     # Heatmap & Anomalies
     col_tm, col_ts = st.columns([2, 1])
     
     with col_tm:
         st.subheader("Risk Heatmap: Hour vs Day")
-        # Need to reconstruct hourly data or use the 'hourly' key if accessible
-        # Since 'temporal' is summary, let's look at cache.get_temporal_trends() logic... 
-        # Actually the cache method 'get_advanced_temporal' calls 'get_temporal_summary'.
-        # 'get_temporal_trends' gives raw frames. 
-        # We might need to fetch trends for the heatmap.
-        # Let's call cache directly for trends here to be safe
-        trends = get_default_cache().get_temporal_trends()
-        daily = trends['daily']
-        hourly = trends['hourly'] # aggregated over all days
-        
-        # NOTE: To do Day vs Hour heatmap we need the raw aggregation. 
-        # For now, let's visualize Day of Week risk.
+        daily = scope_context.get('daily') if scope_context else trends['daily']
+
         fig = px.bar(
             daily, 
             x="day_of_week", 
@@ -108,7 +332,7 @@ try:
     tab_net, tab_corr = st.tabs(["Collusion Detection", "Feature Correlations"])
     
     with tab_net:
-        collusion = patterns.get('collusion_patterns', [])
+        collusion = active_patterns.get('collusion_patterns', [])
         st.markdown(f"**Potential Collusion Pairs Detected**: {len(collusion)}")
         
         if collusion:
@@ -154,10 +378,10 @@ try:
     st.header("3. Algorithmic Detectors")
     
     detectors = [
-        {"name": "Driver Pattern Anomalies", "count": len(patterns.get('driver_patterns', [])), "desc": "Deviation from peer benchmarks (Mean + 2SD)"},
-        {"name": "Customer Claim Frequency", "count": len(patterns.get('customer_patterns', [])), "desc": "Abnormal claim velocity vs spend"},
-        {"name": "Network Collusion", "count": len(patterns.get('collusion_patterns', [])), "desc": "Driver-Customer recurrent loss pairings"},
-        {"name": "Regional Hotspots", "count": len(patterns.get('regional_patterns', [])), "desc": "Geospatial high-risk zones"},
+        {"name": "Driver Pattern Anomalies", "count": len(active_patterns.get('driver_patterns', [])), "desc": "Deviation from peer benchmarks (Mean + 2SD)"},
+        {"name": "Customer Claim Frequency", "count": len(active_patterns.get('customer_patterns', [])), "desc": "Abnormal claim velocity vs spend"},
+        {"name": "Network Collusion", "count": len(active_patterns.get('collusion_patterns', [])), "desc": "Driver-Customer recurrent loss pairings"},
+        {"name": "Regional Hotspots", "count": len(active_patterns.get('regional_patterns', [])), "desc": "Geospatial high-risk zones"},
     ]
     
     col_alg1, col_alg2 = st.columns([1, 1])
@@ -178,7 +402,7 @@ try:
          st.markdown("### Latest Findings Log")
          # Flatten all patterns
          all_findings = []
-         for p_type, items in patterns.items():
+         for p_type, items in active_patterns.items():
             for item in items:
                 all_findings.append({
                     "Algorithm": p_type.replace('_patterns', '').title(),
