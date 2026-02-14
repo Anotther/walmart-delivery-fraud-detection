@@ -1,0 +1,1053 @@
+{
+  "version": "1.0.0",
+  "generated": "2026-02-14T18:58:46.727Z",
+  "stack": {
+    "primaryLanguage": "python",
+    "languages": [
+      "python"
+    ],
+    "frameworks": [],
+    "buildTools": [],
+    "testFrameworks": [],
+    "packageManager": null,
+    "isMonorepo": false,
+    "hasDocker": false,
+    "hasCI": false
+  },
+  "structure": {
+    "totalFiles": 288,
+    "topDirectories": [
+      {
+        "name": "AGENTS.md",
+        "fileCount": 1
+      },
+      {
+        "name": "CLAUDE.md",
+        "fileCount": 1
+      },
+      {
+        "name": "dashboard",
+        "fileCount": 29
+      },
+      {
+        "name": "data",
+        "fileCount": 5
+      },
+      {
+        "name": "docs",
+        "fileCount": 21
+      },
+      {
+        "name": "GEMINI.md",
+        "fileCount": 1
+      },
+      {
+        "name": "notebooks",
+        "fileCount": 141
+      },
+      {
+        "name": "outputs",
+        "fileCount": 5
+      },
+      {
+        "name": "PLANE_API_BUG_DIAGNOSTIC.md",
+        "fileCount": 1
+      },
+      {
+        "name": "PLANE_ISSUES_CONSOLIDADAS.md",
+        "fileCount": 1
+      },
+      {
+        "name": "QWEN.md",
+        "fileCount": 1
+      },
+      {
+        "name": "README.md",
+        "fileCount": 1
+      },
+      {
+        "name": "requirements.txt",
+        "fileCount": 1
+      },
+      {
+        "name": "scripts",
+        "fileCount": 6
+      },
+      {
+        "name": "src",
+        "fileCount": 60
+      },
+      {
+        "name": "tests",
+        "fileCount": 13
+      }
+    ],
+    "languageDistribution": [
+      {
+        "extension": ".py",
+        "count": 64
+      },
+      {
+        "extension": ".pyc",
+        "count": 36
+      },
+      {
+        "extension": ".md",
+        "count": 26
+      },
+      {
+        "extension": ".joblib",
+        "count": 12
+      },
+      {
+        "extension": ".yaml",
+        "count": 12
+      },
+      {
+        "extension": ".user",
+        "count": 10
+      },
+      {
+        "extension": ".type",
+        "count": 10
+      },
+      {
+        "extension": ".name",
+        "count": 10
+      },
+      {
+        "extension": ".runname",
+        "count": 10
+      },
+      {
+        "extension": ".ipynb",
+        "count": 7
+      }
+    ]
+  },
+  "architecture": {
+    "layers": [
+      {
+        "name": "Repositories",
+        "description": "Data access and persistence",
+        "directories": [
+          "tests",
+          "scripts",
+          "src/database",
+          "src/dashboard",
+          "src/config",
+          "src/database/queries"
+        ],
+        "symbolCount": 35,
+        "dependsOn": []
+      },
+      {
+        "name": "Models",
+        "description": "Data structures and domain objects",
+        "directories": [
+          "scripts",
+          "src/models",
+          "src/database",
+          "dashboard/pages"
+        ],
+        "symbolCount": 31,
+        "dependsOn": []
+      },
+      {
+        "name": "Components",
+        "description": "UI components and views",
+        "directories": [
+          "src/dashboard",
+          "dashboard/pages",
+          "dashboard/components"
+        ],
+        "symbolCount": 157,
+        "dependsOn": []
+      },
+      {
+        "name": "Config",
+        "description": "Configuration and constants",
+        "directories": [
+          "src/config"
+        ],
+        "symbolCount": 8,
+        "dependsOn": []
+      }
+    ],
+    "patterns": [],
+    "entryPoints": []
+  },
+  "symbols": {
+    "classes": [
+      {
+        "name": "BaseFraudModel",
+        "kind": "class",
+        "file": "src/models/base.py",
+        "line": 15,
+        "exported": true
+      },
+      {
+        "name": "Customer",
+        "kind": "class",
+        "file": "src/database/models.py",
+        "line": 14,
+        "exported": true
+      },
+      {
+        "name": "DashboardCache",
+        "kind": "class",
+        "file": "src/dashboard/data_cache.py",
+        "line": 39,
+        "exported": true
+      },
+      {
+        "name": "DatabaseConnectionError",
+        "kind": "class",
+        "file": "src/database/manager.py",
+        "line": 26,
+        "exported": true
+      },
+      {
+        "name": "DatabaseManager",
+        "kind": "class",
+        "file": "src/database/manager.py",
+        "line": 31,
+        "exported": true
+      },
+      {
+        "name": "DBSCANModel",
+        "kind": "class",
+        "file": "src/models/clustering.py",
+        "line": 171,
+        "exported": true
+      },
+      {
+        "name": "Driver",
+        "kind": "class",
+        "file": "src/database/models.py",
+        "line": 32,
+        "exported": true
+      },
+      {
+        "name": "EnsembleOutlierDetector",
+        "kind": "class",
+        "file": "src/models/outlier_detection.py",
+        "line": 199,
+        "exported": true
+      },
+      {
+        "name": "Finding",
+        "kind": "class",
+        "file": "scripts/audit_dashboard_theme.py",
+        "line": 30,
+        "exported": true
+      },
+      {
+        "name": "FraudClusterAnalyzer",
+        "kind": "class",
+        "file": "src/models/clustering.py",
+        "line": 293,
+        "exported": true
+      },
+      {
+        "name": "FraudIndicator",
+        "kind": "class",
+        "file": "src/analysis/fraud_patterns.py",
+        "line": 13,
+        "exported": true
+      },
+      {
+        "name": "FraudPredictor",
+        "kind": "class",
+        "file": "src/models/predict.py",
+        "line": 18,
+        "exported": true
+      },
+      {
+        "name": "IsolationForestModel",
+        "kind": "class",
+        "file": "src/models/outlier_detection.py",
+        "line": 13,
+        "exported": true
+      },
+      {
+        "name": "KMeansModel",
+        "kind": "class",
+        "file": "src/models/clustering.py",
+        "line": 13,
+        "exported": true
+      },
+      {
+        "name": "LOFModel",
+        "kind": "class",
+        "file": "src/models/outlier_detection.py",
+        "line": 117,
+        "exported": true
+      },
+      {
+        "name": "MissingItem",
+        "kind": "class",
+        "file": "src/database/models.py",
+        "line": 120,
+        "exported": true
+      },
+      {
+        "name": "Order",
+        "kind": "class",
+        "file": "src/database/models.py",
+        "line": 70,
+        "exported": true
+      },
+      {
+        "name": "Product",
+        "kind": "class",
+        "file": "src/database/models.py",
+        "line": 54,
+        "exported": true
+      },
+      {
+        "name": "RiskScore",
+        "kind": "class",
+        "file": "src/models/risk_scoring.py",
+        "line": 15,
+        "exported": true
+      },
+      {
+        "name": "RiskScoringEngine",
+        "kind": "class",
+        "file": "src/models/risk_scoring.py",
+        "line": 24,
+        "exported": true
+      },
+      {
+        "name": "RiskThresholds",
+        "kind": "class",
+        "file": "src/config/risk_thresholds.py",
+        "line": 49,
+        "exported": true
+      },
+      {
+        "name": "Rule",
+        "kind": "class",
+        "file": "scripts/audit_dashboard_theme.py",
+        "line": 23,
+        "exported": true
+      }
+    ],
+    "interfaces": [],
+    "functions": [
+      {
+        "name": "aggregate_by_time_period",
+        "kind": "function",
+        "file": "src/features/temporal_features.py",
+        "line": 71,
+        "exported": true
+      },
+      {
+        "name": "analyze_all_fraud_patterns",
+        "kind": "function",
+        "file": "src/analysis/fraud_patterns.py",
+        "line": 374,
+        "exported": true
+      },
+      {
+        "name": "analyze_customer_patterns",
+        "kind": "function",
+        "file": "src/features/customer_features.py",
+        "line": 176,
+        "exported": true
+      },
+      {
+        "name": "analyze_day_of_week_patterns",
+        "kind": "function",
+        "file": "src/analysis/temporal.py",
+        "line": 97,
+        "exported": true
+      },
+      {
+        "name": "analyze_hourly_patterns",
+        "kind": "function",
+        "file": "src/analysis/temporal.py",
+        "line": 135,
+        "exported": true
+      },
+      {
+        "name": "analyze_monthly_trends",
+        "kind": "function",
+        "file": "src/analysis/temporal.py",
+        "line": 11,
+        "exported": true
+      },
+      {
+        "name": "analyze_regional_drivers",
+        "kind": "function",
+        "file": "src/analysis/geographic.py",
+        "line": 97,
+        "exported": true
+      },
+      {
+        "name": "analyze_regional_performance",
+        "kind": "function",
+        "file": "src/analysis/geographic.py",
+        "line": 11,
+        "exported": true
+      },
+      {
+        "name": "analyze_regional_time_patterns",
+        "kind": "function",
+        "file": "src/analysis/geographic.py",
+        "line": 185,
+        "exported": true
+      },
+      {
+        "name": "analyze_trend_direction",
+        "kind": "function",
+        "file": "src/analysis/temporal.py",
+        "line": 249,
+        "exported": true
+      },
+      {
+        "name": "analyze_weekly_patterns",
+        "kind": "function",
+        "file": "src/analysis/temporal.py",
+        "line": 61,
+        "exported": true
+      },
+      {
+        "name": "apply_filters",
+        "kind": "function",
+        "file": "dashboard/pages/4_Customers.py",
+        "line": 505,
+        "exported": true
+      },
+      {
+        "name": "apply_filters",
+        "kind": "function",
+        "file": "dashboard/components/filters.py",
+        "line": 193,
+        "exported": true
+      },
+      {
+        "name": "apply_plotly_theme",
+        "kind": "function",
+        "file": "src/dashboard/theme.py",
+        "line": 199,
+        "exported": true
+      },
+      {
+        "name": "apply_project_theme",
+        "kind": "function",
+        "file": "src/config/viz_theme.py",
+        "line": 239,
+        "exported": true
+      },
+      {
+        "name": "build_automated_insights",
+        "kind": "function",
+        "file": "dashboard/pages/6_Product_Analysis.py",
+        "line": 951,
+        "exported": true
+      },
+      {
+        "name": "build_behavior_shift_table",
+        "kind": "function",
+        "file": "dashboard/pages/6_Product_Analysis.py",
+        "line": 779,
+        "exported": true
+      },
+      {
+        "name": "build_bubble_map",
+        "kind": "function",
+        "file": "dashboard/pages/5_Geographic.py",
+        "line": 396,
+        "exported": true
+      },
+      {
+        "name": "build_case_queue",
+        "kind": "function",
+        "file": "dashboard/pages/4_Customers.py",
+        "line": 537,
+        "exported": true
+      },
+      {
+        "name": "build_category_color_map",
+        "kind": "function",
+        "file": "dashboard/pages/6_Product_Analysis.py",
+        "line": 476,
+        "exported": true
+      },
+      {
+        "name": "build_category_scope",
+        "kind": "function",
+        "file": "dashboard/pages/6_Product_Analysis.py",
+        "line": 602,
+        "exported": true
+      },
+      {
+        "name": "build_consistency_checks",
+        "kind": "function",
+        "file": "dashboard/pages/6_Product_Analysis.py",
+        "line": 907,
+        "exported": true
+      },
+      {
+        "name": "build_consistency_checks",
+        "kind": "function",
+        "file": "dashboard/pages/3_Drivers.py",
+        "line": 495,
+        "exported": true
+      },
+      {
+        "name": "build_css_variables_block",
+        "kind": "function",
+        "file": "src/dashboard/theme.py",
+        "line": 164,
+        "exported": true
+      },
+      {
+        "name": "build_customer_monthly",
+        "kind": "function",
+        "file": "dashboard/pages/4_Customers.py",
+        "line": 625,
+        "exported": true
+      },
+      {
+        "name": "build_driver_links",
+        "kind": "function",
+        "file": "dashboard/pages/4_Customers.py",
+        "line": 646,
+        "exported": true
+      },
+      {
+        "name": "build_driver_monthly",
+        "kind": "function",
+        "file": "dashboard/pages/3_Drivers.py",
+        "line": 92,
+        "exported": true
+      },
+      {
+        "name": "build_driver_snapshot",
+        "kind": "function",
+        "file": "dashboard/pages/3_Drivers.py",
+        "line": 73,
+        "exported": true
+      },
+      {
+        "name": "build_knowledge_base_registry",
+        "kind": "function",
+        "file": "dashboard/pages/6_Product_Analysis.py",
+        "line": 868,
+        "exported": true
+      },
+      {
+        "name": "build_loss_forecast",
+        "kind": "function",
+        "file": "dashboard/pages/6_Product_Analysis.py",
+        "line": 722,
+        "exported": true
+      },
+      {
+        "name": "build_margin_loss_plot_frame",
+        "kind": "function",
+        "file": "dashboard/pages/6_Product_Analysis.py",
+        "line": 678,
+        "exported": true
+      },
+      {
+        "name": "build_missing_rate_chart",
+        "kind": "function",
+        "file": "dashboard/pages/5_Geographic.py",
+        "line": 445,
+        "exported": true
+      },
+      {
+        "name": "build_model_accuracy_proxy",
+        "kind": "function",
+        "file": "dashboard/pages/6_Product_Analysis.py",
+        "line": 843,
+        "exported": true
+      },
+      {
+        "name": "build_monthly_category_loss",
+        "kind": "function",
+        "file": "dashboard/pages/6_Product_Analysis.py",
+        "line": 644,
+        "exported": true
+      },
+      {
+        "name": "build_monthly_trend_chart",
+        "kind": "function",
+        "file": "dashboard/pages/3_Drivers.py",
+        "line": 297,
+        "exported": true
+      },
+      {
+        "name": "build_product_scope",
+        "kind": "function",
+        "file": "dashboard/pages/6_Product_Analysis.py",
+        "line": 490,
+        "exported": true
+      },
+      {
+        "name": "build_queue_display",
+        "kind": "function",
+        "file": "dashboard/pages/4_Customers.py",
+        "line": 558,
+        "exported": true
+      },
+      {
+        "name": "build_raw_numeric_table",
+        "kind": "function",
+        "file": "dashboard/pages/5_Geographic.py",
+        "line": 592,
+        "exported": true
+      },
+      {
+        "name": "build_recommendations",
+        "kind": "function",
+        "file": "dashboard/pages/6_Product_Analysis.py",
+        "line": 1012,
+        "exported": true
+      },
+      {
+        "name": "build_revenue_share_chart",
+        "kind": "function",
+        "file": "dashboard/pages/5_Geographic.py",
+        "line": 529,
+        "exported": true
+      },
+      {
+        "name": "build_risk_chip",
+        "kind": "function",
+        "file": "dashboard/pages/5_Geographic.py",
+        "line": 557,
+        "exported": true
+      },
+      {
+        "name": "build_risk_volume_scatter",
+        "kind": "function",
+        "file": "dashboard/pages/5_Geographic.py",
+        "line": 480,
+        "exported": true
+      },
+      {
+        "name": "build_scope_context",
+        "kind": "function",
+        "file": "dashboard/pages/8_Patterns.py",
+        "line": 149,
+        "exported": true
+      },
+      {
+        "name": "build_scoped_revenue",
+        "kind": "function",
+        "file": "dashboard/pages/6_Product_Analysis.py",
+        "line": 667,
+        "exported": true
+      },
+      {
+        "name": "build_segment_matrix",
+        "kind": "function",
+        "file": "dashboard/pages/4_Customers.py",
+        "line": 612,
+        "exported": true
+      },
+      {
+        "name": "build_sku_exploratory_view",
+        "kind": "function",
+        "file": "dashboard/pages/6_Product_Analysis.py",
+        "line": 1498,
+        "exported": true
+      },
+      {
+        "name": "build_sku_triage_queue",
+        "kind": "function",
+        "file": "dashboard/pages/6_Product_Analysis.py",
+        "line": 1307,
+        "exported": true
+      },
+      {
+        "name": "calculate_business_impact",
+        "kind": "function",
+        "file": "dashboard/pages/1_Overview.py",
+        "line": 58,
+        "exported": true
+      },
+      {
+        "name": "calculate_correlations",
+        "kind": "function",
+        "file": "src/analysis/descriptive.py",
+        "line": 190,
+        "exported": true
+      },
+      {
+        "name": "calculate_trend_delta",
+        "kind": "function",
+        "file": "dashboard/pages/1_Overview.py",
+        "line": 78,
+        "exported": true
+      }
+    ],
+    "types": [],
+    "enums": []
+  },
+  "publicAPI": [
+    {
+      "name": "aggregate_by_time_period",
+      "kind": "function",
+      "file": "src/features/temporal_features.py",
+      "line": 71,
+      "exported": true
+    },
+    {
+      "name": "analyze_all_fraud_patterns",
+      "kind": "function",
+      "file": "src/analysis/fraud_patterns.py",
+      "line": 374,
+      "exported": true
+    },
+    {
+      "name": "analyze_customer_patterns",
+      "kind": "function",
+      "file": "src/features/customer_features.py",
+      "line": 176,
+      "exported": true
+    },
+    {
+      "name": "analyze_day_of_week_patterns",
+      "kind": "function",
+      "file": "src/analysis/temporal.py",
+      "line": 97,
+      "exported": true
+    },
+    {
+      "name": "analyze_hourly_patterns",
+      "kind": "function",
+      "file": "src/analysis/temporal.py",
+      "line": 135,
+      "exported": true
+    },
+    {
+      "name": "analyze_monthly_trends",
+      "kind": "function",
+      "file": "src/analysis/temporal.py",
+      "line": 11,
+      "exported": true
+    },
+    {
+      "name": "analyze_regional_drivers",
+      "kind": "function",
+      "file": "src/analysis/geographic.py",
+      "line": 97,
+      "exported": true
+    },
+    {
+      "name": "analyze_regional_performance",
+      "kind": "function",
+      "file": "src/analysis/geographic.py",
+      "line": 11,
+      "exported": true
+    },
+    {
+      "name": "analyze_regional_time_patterns",
+      "kind": "function",
+      "file": "src/analysis/geographic.py",
+      "line": 185,
+      "exported": true
+    },
+    {
+      "name": "analyze_trend_direction",
+      "kind": "function",
+      "file": "src/analysis/temporal.py",
+      "line": 249,
+      "exported": true
+    },
+    {
+      "name": "analyze_weekly_patterns",
+      "kind": "function",
+      "file": "src/analysis/temporal.py",
+      "line": 61,
+      "exported": true
+    },
+    {
+      "name": "apply_filters",
+      "kind": "function",
+      "file": "dashboard/pages/4_Customers.py",
+      "line": 505,
+      "exported": true
+    },
+    {
+      "name": "apply_filters",
+      "kind": "function",
+      "file": "dashboard/components/filters.py",
+      "line": 193,
+      "exported": true
+    },
+    {
+      "name": "apply_plotly_theme",
+      "kind": "function",
+      "file": "src/dashboard/theme.py",
+      "line": 199,
+      "exported": true
+    },
+    {
+      "name": "apply_project_theme",
+      "kind": "function",
+      "file": "src/config/viz_theme.py",
+      "line": 239,
+      "exported": true
+    },
+    {
+      "name": "BaseFraudModel",
+      "kind": "class",
+      "file": "src/models/base.py",
+      "line": 15,
+      "exported": true
+    },
+    {
+      "name": "build_automated_insights",
+      "kind": "function",
+      "file": "dashboard/pages/6_Product_Analysis.py",
+      "line": 951,
+      "exported": true
+    },
+    {
+      "name": "build_behavior_shift_table",
+      "kind": "function",
+      "file": "dashboard/pages/6_Product_Analysis.py",
+      "line": 779,
+      "exported": true
+    },
+    {
+      "name": "build_bubble_map",
+      "kind": "function",
+      "file": "dashboard/pages/5_Geographic.py",
+      "line": 396,
+      "exported": true
+    },
+    {
+      "name": "build_case_queue",
+      "kind": "function",
+      "file": "dashboard/pages/4_Customers.py",
+      "line": 537,
+      "exported": true
+    },
+    {
+      "name": "build_category_color_map",
+      "kind": "function",
+      "file": "dashboard/pages/6_Product_Analysis.py",
+      "line": 476,
+      "exported": true
+    },
+    {
+      "name": "build_category_scope",
+      "kind": "function",
+      "file": "dashboard/pages/6_Product_Analysis.py",
+      "line": 602,
+      "exported": true
+    },
+    {
+      "name": "build_consistency_checks",
+      "kind": "function",
+      "file": "dashboard/pages/6_Product_Analysis.py",
+      "line": 907,
+      "exported": true
+    },
+    {
+      "name": "build_consistency_checks",
+      "kind": "function",
+      "file": "dashboard/pages/3_Drivers.py",
+      "line": 495,
+      "exported": true
+    },
+    {
+      "name": "build_css_variables_block",
+      "kind": "function",
+      "file": "src/dashboard/theme.py",
+      "line": 164,
+      "exported": true
+    },
+    {
+      "name": "build_customer_monthly",
+      "kind": "function",
+      "file": "dashboard/pages/4_Customers.py",
+      "line": 625,
+      "exported": true
+    },
+    {
+      "name": "build_driver_links",
+      "kind": "function",
+      "file": "dashboard/pages/4_Customers.py",
+      "line": 646,
+      "exported": true
+    },
+    {
+      "name": "build_driver_monthly",
+      "kind": "function",
+      "file": "dashboard/pages/3_Drivers.py",
+      "line": 92,
+      "exported": true
+    },
+    {
+      "name": "build_driver_snapshot",
+      "kind": "function",
+      "file": "dashboard/pages/3_Drivers.py",
+      "line": 73,
+      "exported": true
+    },
+    {
+      "name": "build_knowledge_base_registry",
+      "kind": "function",
+      "file": "dashboard/pages/6_Product_Analysis.py",
+      "line": 868,
+      "exported": true
+    },
+    {
+      "name": "build_loss_forecast",
+      "kind": "function",
+      "file": "dashboard/pages/6_Product_Analysis.py",
+      "line": 722,
+      "exported": true
+    },
+    {
+      "name": "build_margin_loss_plot_frame",
+      "kind": "function",
+      "file": "dashboard/pages/6_Product_Analysis.py",
+      "line": 678,
+      "exported": true
+    },
+    {
+      "name": "build_missing_rate_chart",
+      "kind": "function",
+      "file": "dashboard/pages/5_Geographic.py",
+      "line": 445,
+      "exported": true
+    },
+    {
+      "name": "build_model_accuracy_proxy",
+      "kind": "function",
+      "file": "dashboard/pages/6_Product_Analysis.py",
+      "line": 843,
+      "exported": true
+    },
+    {
+      "name": "build_monthly_category_loss",
+      "kind": "function",
+      "file": "dashboard/pages/6_Product_Analysis.py",
+      "line": 644,
+      "exported": true
+    },
+    {
+      "name": "build_monthly_trend_chart",
+      "kind": "function",
+      "file": "dashboard/pages/3_Drivers.py",
+      "line": 297,
+      "exported": true
+    },
+    {
+      "name": "build_product_scope",
+      "kind": "function",
+      "file": "dashboard/pages/6_Product_Analysis.py",
+      "line": 490,
+      "exported": true
+    },
+    {
+      "name": "build_queue_display",
+      "kind": "function",
+      "file": "dashboard/pages/4_Customers.py",
+      "line": 558,
+      "exported": true
+    },
+    {
+      "name": "build_raw_numeric_table",
+      "kind": "function",
+      "file": "dashboard/pages/5_Geographic.py",
+      "line": 592,
+      "exported": true
+    },
+    {
+      "name": "build_recommendations",
+      "kind": "function",
+      "file": "dashboard/pages/6_Product_Analysis.py",
+      "line": 1012,
+      "exported": true
+    },
+    {
+      "name": "build_revenue_share_chart",
+      "kind": "function",
+      "file": "dashboard/pages/5_Geographic.py",
+      "line": 529,
+      "exported": true
+    },
+    {
+      "name": "build_risk_chip",
+      "kind": "function",
+      "file": "dashboard/pages/5_Geographic.py",
+      "line": 557,
+      "exported": true
+    },
+    {
+      "name": "build_risk_volume_scatter",
+      "kind": "function",
+      "file": "dashboard/pages/5_Geographic.py",
+      "line": 480,
+      "exported": true
+    },
+    {
+      "name": "build_scope_context",
+      "kind": "function",
+      "file": "dashboard/pages/8_Patterns.py",
+      "line": 149,
+      "exported": true
+    },
+    {
+      "name": "build_scoped_revenue",
+      "kind": "function",
+      "file": "dashboard/pages/6_Product_Analysis.py",
+      "line": 667,
+      "exported": true
+    },
+    {
+      "name": "build_segment_matrix",
+      "kind": "function",
+      "file": "dashboard/pages/4_Customers.py",
+      "line": 612,
+      "exported": true
+    },
+    {
+      "name": "build_sku_exploratory_view",
+      "kind": "function",
+      "file": "dashboard/pages/6_Product_Analysis.py",
+      "line": 1498,
+      "exported": true
+    },
+    {
+      "name": "build_sku_triage_queue",
+      "kind": "function",
+      "file": "dashboard/pages/6_Product_Analysis.py",
+      "line": 1307,
+      "exported": true
+    },
+    {
+      "name": "calculate_business_impact",
+      "kind": "function",
+      "file": "dashboard/pages/1_Overview.py",
+      "line": 58,
+      "exported": true
+    },
+    {
+      "name": "calculate_correlations",
+      "kind": "function",
+      "file": "src/analysis/descriptive.py",
+      "line": 190,
+      "exported": true
+    }
+  ],
+  "dependencies": {
+    "mostImported": []
+  },
+  "stats": {
+    "totalSymbols": 332,
+    "exportedSymbols": 293,
+    "analysisTimeMs": 100
+  }
+}
