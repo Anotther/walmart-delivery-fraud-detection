@@ -26,7 +26,7 @@ def main():
             print(f"  {name}: {details['row_count']} rows")
         else:
             print(f"  {name}: NOT FOUND")
-            return
+            return 1
 
     raw_data = extract_all()
 
@@ -37,13 +37,19 @@ def main():
     # Validate
     print("\n--- Validating data ---")
     is_valid, issues = validate_data(transformed_data)
-    if issues:
+    if not is_valid:
+        print("ERROR: Validation failed")
         for issue in issues:
             print(f"  Warning: {issue}")
+        return 2
 
     # Load
     print("\n--- Loading data ---")
-    results = load_all(transformed_data, truncate_first=True)
+    try:
+        results = load_all(transformed_data, truncate_first=True)
+    except Exception as exc:
+        print(f"ERROR: Load failed: {exc}")
+        return 3
     for table, count in results.items():
         print(f"  {table}: {count} rows loaded")
 
@@ -56,7 +62,8 @@ def main():
     print("\n" + "=" * 50)
     print("ETL completed successfully!")
     print("=" * 50)
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

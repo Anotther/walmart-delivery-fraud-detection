@@ -13,10 +13,12 @@ Usage:
     # Get highlight colors for bar charts
     colors = get_highlight_colors(data, highlight_index=0)
 """
-
+import logging
 from typing import List, Dict, Any, Optional
 import plotly.io as pio
 import plotly.graph_objects as go
+
+logger = logging.getLogger(__name__)
 
 
 # =============================================================================
@@ -427,5 +429,5 @@ def register_project_template():
 # Register template on import
 try:
     register_project_template()
-except Exception:
-    pass  # Ignore if Plotly not fully loaded
+except Exception as exc:
+    logger.debug("Plotly template registration skipped: %s", exc)

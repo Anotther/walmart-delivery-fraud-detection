@@ -2782,7 +2782,13 @@ def main() -> None:
                 f"Effort: {row['effort']}<br>"
                 f"{row['rationale']}"
             )
-            insight_card(f"Action {idx + 1}", body, icon="Plan", compact=True)
+            insight_card(
+                f"Action {idx + 1}",
+                body,
+                icon="Plan",
+                compact=True,
+                allow_html=True,
+            )
 
 if __name__ == "__main__":
     main()

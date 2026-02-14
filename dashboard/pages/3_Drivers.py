@@ -63,7 +63,7 @@ def load_base_data():
     drivers_summary = page_data['driver_summary']
 
     # Load additional data needed for the page
-    orders = cache._load_orders_with_features()
+    orders = cache.get_orders_with_features()
     drivers = load_drivers()
 
     return orders, drivers, drivers_summary

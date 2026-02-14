@@ -78,22 +78,22 @@ class DatabaseManager:
             True if database is available, False otherwise
         """
         try:
-            from src.database.connection import (
-                get_connection,
-                load_orders,
-                load_drivers
-            )
+            from sqlalchemy import text
+            from src.config.database import get_connection
 
             # Test connection
             with get_connection() as conn:
-                cursor = conn.cursor()
-                cursor.execute("SELECT 1")
-                cursor.fetchone()
-                cursor.close()
+                conn.execute(text("SELECT 1"))
 
-            # Test basic queries
-            orders = pd.read_sql("SELECT COUNT(*) as count FROM orders", conn)
-            drivers = pd.read_sql("SELECT COUNT(*) as count FROM drivers", conn)
+                # Test basic queries while connection is open.
+                orders = pd.read_sql(
+                    text("SELECT COUNT(*) as count FROM walmart_fraud.orders"),
+                    conn,
+                )
+                drivers = pd.read_sql(
+                    text("SELECT COUNT(*) as count FROM walmart_fraud.drivers"),
+                    conn,
+                )
 
             self.db_available = True
             self.use_fallback = False

@@ -390,8 +390,8 @@ class DashboardCache:
     # Data Loading with Caching
     # -------------------------------------------------------------------------
 
-    def _load_orders_with_features(self) -> pd.DataFrame:
-        """Load orders and add derived features."""
+    def _compute_orders_with_features(self) -> pd.DataFrame:
+        """Compute orders dataset enriched with derived analytical features."""
         orders = load_orders()
         orders['order_date'] = pd.to_datetime(orders['order_date'])
         orders['total_items'] = orders['items_delivered'] + orders['items_missing']
@@ -415,6 +415,30 @@ class DashboardCache:
             # Fallback for already-numeric or non-standard hour formats
             hour_series = pd.to_numeric(orders['delivery_hour'], errors='coerce')
         orders['delivery_hour'] = hour_series.fillna(0).astype(int)
+        return orders
+
+    def _load_orders_with_features(self) -> pd.DataFrame:
+        """
+        Backward-compatible wrapper.
+
+        Prefer `get_orders_with_features()` for external callers.
+        """
+        return self.get_orders_with_features()
+
+    def get_orders_with_features(self) -> pd.DataFrame:
+        """
+        Get cached orders dataset with derived features.
+
+        Returns:
+            DataFrame with enriched order-level features used across dashboard pages.
+        """
+        cache_key = "orders_with_features"
+        cached = self._get_cache(cache_key)
+        if cached is not None:
+            return cached
+
+        orders = self._compute_orders_with_features()
+        self._set_cache(cache_key, orders)
         return orders
 
     # -------------------------------------------------------------------------

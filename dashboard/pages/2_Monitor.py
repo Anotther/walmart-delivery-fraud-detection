@@ -14,11 +14,6 @@ from html import escape
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-# Explicit imports to avoid any potential namespace issues
-import importlib
-import src.dashboard.components
-importlib.reload(src.dashboard.components)
-
 from src.dashboard.components import load_css
 from src.dashboard.components import kpi_card
 from src.dashboard.components import insight_card

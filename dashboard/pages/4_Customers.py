@@ -402,7 +402,7 @@ def get_customer_workspace() -> Dict[str, pd.DataFrame]:
     customers = page_data['customer_summary'].copy()
 
     # Load additional data not in PAGE_CONFIGS
-    orders = cache._load_orders_with_features().copy()
+    orders = cache.get_orders_with_features().copy()
     drivers = cache.get_driver_summary().copy()
 
     customer_numeric = [

@@ -3,15 +3,20 @@ Database connection module for Walmart Fraud Detection.
 Provides functions to load data from PostgreSQL into DataFrames.
 """
 import pandas as pd
-from sqlalchemy import create_engine, text
+from sqlalchemy import text
 from typing import Dict, Optional
 
-from src.config.settings import DATABASE_URL
+from src.config.database import engine as shared_engine
 
 
 def get_engine():
-    """Create SQLAlchemy engine for PostgreSQL connection."""
-    return create_engine(DATABASE_URL)
+    """Return shared SQLAlchemy engine for PostgreSQL connection pooling."""
+    return shared_engine
+
+
+def get_connection():
+    """Return a raw SQLAlchemy connection from the shared engine."""
+    return get_engine().connect()
 
 
 def execute_query(query: str, params: Optional[Dict] = None) -> pd.DataFrame:
@@ -25,8 +30,7 @@ def execute_query(query: str, params: Optional[Dict] = None) -> pd.DataFrame:
     Returns:
         DataFrame with query results
     """
-    engine = get_engine()
-    with engine.connect() as conn:
+    with get_connection() as conn:
         return pd.read_sql(text(query), conn, params=params)
 
 
@@ -257,8 +261,7 @@ def test_connection() -> bool:
         True if connection successful, False otherwise
     """
     try:
-        engine = get_engine()
-        with engine.connect() as conn:
+        with get_connection() as conn:
             conn.execute(text("SELECT 1"))
         return True
     except Exception as e:

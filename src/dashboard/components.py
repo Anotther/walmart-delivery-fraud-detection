@@ -6,6 +6,7 @@ from __future__ import annotations
 
 from html import escape
 from pathlib import Path
+import re
 from textwrap import dedent
 from typing import Dict, List, Optional, Union
 
@@ -24,6 +25,20 @@ from src.dashboard.theme import (
 
 # Backward-compatible color dictionary used across page modules.
 COLORS: Dict[str, str] = get_component_colors("light")
+
+
+def _sanitize_css_class(value: Optional[str]) -> str:
+    if not value:
+        return ""
+    tokens = re.findall(r"[A-Za-z0-9_-]+", value)
+    return " ".join(tokens).strip()
+
+
+def _sanitize_css_value(value: str, default: str) -> str:
+    candidate = str(value).strip()
+    if re.fullmatch(r"[#(),.%\sA-Za-z0-9_-]+", candidate):
+        return candidate
+    return default
 
 def _sync_component_colors(theme_mode: str | None = None) -> None:
     """Refresh shared color aliases based on current theme."""
@@ -127,10 +142,12 @@ def kpi_card(
     color: Optional[str] = None,
     tooltip: Optional[str] = None,
     card_class: Optional[str] = None,
+    allow_html_value: bool = False,
 ):
     """Display a custom styled KPI card using CSS classes."""
     if color is None:
         color = COLORS["walmart_blue_light"]
+    safe_color = _sanitize_css_value(color, COLORS["walmart_blue_light"])
 
     delta_html = '<div class="kpi-meta"></div>'
     if delta:
@@ -142,35 +159,48 @@ def kpi_card(
         else:
             d_class = "delta-neu"
 
-        delta_html = f'<div class="kpi-meta"><span class="{d_class}">{delta}</span></div>'
+        safe_delta = escape(str(delta), quote=True)
+        delta_html = f'<div class="kpi-meta"><span class="{d_class}">{safe_delta}</span></div>'
 
     tooltip_attr = f'title="{escape(str(tooltip), quote=True)}"' if tooltip else ""
+    safe_title = escape(str(title), quote=False)
+    safe_value = str(value) if allow_html_value else escape(str(value), quote=False)
     info_icon = " ℹ️" if tooltip else ""
-    extra_class = f" {card_class.strip()}" if card_class else ""
+    safe_class = _sanitize_css_class(card_class)
+    extra_class = f" {safe_class}" if safe_class else ""
     cursor_style = "help" if tooltip else "default"
 
     html_code = f"""
-    <div class="kpi-card{extra_class}" style="border-left-color: {color}; cursor: {cursor_style};" {tooltip_attr}>
-        <div class="kpi-title">{title}{info_icon}</div>
-        <div class="kpi-value">{value}</div>
+    <div class="kpi-card{extra_class}" style="border-left-color: {safe_color}; cursor: {cursor_style};" {tooltip_attr}>
+        <div class="kpi-title">{safe_title}{info_icon}</div>
+        <div class="kpi-value">{safe_value}</div>
         {delta_html}
     </div>
     """
     st.markdown(html_code, unsafe_allow_html=True)
 
 
-def insight_card(title: str, content: str, icon: str = "💡", compact: bool = False):
+def insight_card(
+    title: str,
+    content: str,
+    icon: str = "💡",
+    compact: bool = False,
+    allow_html: bool = False,
+):
     """Display a narrative insight card."""
     classes = "insight-card compact" if compact else "insight-card"
     clean_content = dedent(str(content)).strip()
+    safe_title = escape(str(title), quote=False)
+    safe_icon = escape(str(icon), quote=False)
+    content_html = clean_content if allow_html else escape(clean_content, quote=False).replace("\n", "<br>")
     st.markdown(
         f"""
     <div class="{classes}">
         <div class="insight-header">
-            <span class="insight-title">{icon} {title}</span>
+            <span class="insight-title">{safe_icon} {safe_title}</span>
         </div>
         <div class="insight-body">
-            {clean_content}
+            {content_html}
         </div>
     </div>
     """,
@@ -262,6 +292,7 @@ def risk_badge(level: str):
     }
     bg_color = color_map.get(level, COLORS["text_light"])
 
+    safe_level = escape(str(level), quote=False)
     st.markdown(
         f"""
     <span style="
@@ -272,7 +303,7 @@ def risk_badge(level: str):
         font-size: 0.8rem;
         font-weight: 700;
         border: 1px solid var(--border-light);
-    ">{level}</span>
+    ">{safe_level}</span>
     """,
         unsafe_allow_html=True,
     )

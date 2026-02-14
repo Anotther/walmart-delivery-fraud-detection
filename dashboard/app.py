@@ -1,6 +1,7 @@
 """
 Walmart Fraud Detection Dashboard - Entry Point
 """
+import logging
 import streamlit as st
 import sys
 from pathlib import Path
@@ -11,6 +12,8 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from src.dashboard.components import load_css, render_sidebar
 from src.dashboard.data_cache import get_default_cache
 from src.config.risk_thresholds import RiskThresholds
+
+logger = logging.getLogger(__name__)
 
 st.set_page_config(
     page_title="Walmart Fraud Detection",
@@ -40,8 +43,8 @@ def get_home_context():
         context["data_period"] = (
             f"{metrics['date_range_start']} to {metrics['date_range_end']}"
         )
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.warning("Unable to load dashboard home context: %s", exc)
 
     return context
 

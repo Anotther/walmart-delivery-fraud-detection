@@ -38,8 +38,10 @@ DATABASE_URL = (
 )
 
 # Application settings
-APP_ENV = os.getenv("APP_ENV", "development")
-DEBUG = os.getenv("DEBUG", "False").lower() in ("true", "1", "yes")
+APP_ENV = os.getenv("APP_ENV", "development").strip().lower()
+_debug_from_env = os.getenv("DEBUG", "False").lower() in ("true", "1", "yes")
+# Never allow debug mode in production, even if env var is misconfigured.
+DEBUG = _debug_from_env and APP_ENV != "production"
 
 # MLflow settings
 MLFLOW_TRACKING_URI = os.getenv("MLFLOW_TRACKING_URI", str(BASE_DIR / "mlflow"))

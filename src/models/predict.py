@@ -1,6 +1,7 @@
 """
 Prediction pipeline for fraud detection.
 """
+import logging
 import sys
 from pathlib import Path
 from typing import Dict, Any, List, Optional
@@ -13,6 +14,8 @@ from src.config.settings import OUTPUT_DIR
 from src.models.outlier_detection import IsolationForestModel, EnsembleOutlierDetector
 from src.models.clustering import KMeansModel
 from src.models.risk_scoring import RiskScoringEngine, RiskScore, create_risk_report
+
+logger = logging.getLogger(__name__)
 
 
 class FraudPredictor:
@@ -89,7 +92,12 @@ class FraudPredictor:
                         pred = model.predict(X)
                         if len(pred) == len(X):
                             predictions.append(pred)
-                    except Exception:
+                    except Exception as exc:
+                        logger.warning(
+                            "Model %s failed during voting prediction: %s",
+                            type(model).__name__,
+                            exc,
+                        )
                         continue
 
             if not predictions:
