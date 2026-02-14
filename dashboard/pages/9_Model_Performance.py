@@ -21,10 +21,21 @@ render_sidebar()
 st.title("Model Performance & MLOps")
 st.markdown("Monitoring Isolation Forest efficacy, data drift, and algorithmic stability.")
 
-@st.cache_data(ttl=900)
+@st.cache_data(ttl=600)  # 10-minute TTL for model performance data
 def get_mlops_data():
+    """
+    Fetch model performance data using lazy loading.
+    This method uses a 10-minute TTL as ML monitoring updates moderately frequently.
+    """
     cache = get_default_cache()
-    return cache.get_model_performance_metrics()
+
+    # Use lazy loading - only loads data needed for model performance page
+    page_data = cache.get_page_data('model_performance')
+
+    # Extract model performance data from page data
+    mlops_data = page_data['model_performance_metrics']
+
+    return mlops_data
 
 try:
     with st.spinner("Calculating MLOps metrics (Drift, Stability)..."):

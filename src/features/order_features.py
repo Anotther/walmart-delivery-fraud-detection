@@ -5,6 +5,8 @@ import pandas as pd
 import numpy as np
 from typing import Optional
 
+from src.config.risk_thresholds import RiskThresholds
+
 
 def create_order_features(orders_df: pd.DataFrame) -> pd.DataFrame:
     """
@@ -101,9 +103,22 @@ def create_order_aggregations(orders_df: pd.DataFrame) -> pd.DataFrame:
 
 def get_high_risk_orders(
     orders_df: pd.DataFrame,
-    missing_rate_threshold: float = 50.0,
+    missing_rate_threshold: float = None,
     value_threshold: Optional[float] = None
 ) -> pd.DataFrame:
+    """
+    Identify high-risk orders based on missing rate and value.
+
+    Args:
+        orders_df: Orders DataFrame with features
+        missing_rate_threshold: Minimum missing rate to flag (default: RiskThresholds.MISSING_RATE_ORDER)
+        value_threshold: Minimum order value to flag (uses median if None)
+
+    Returns:
+        DataFrame with high-risk orders
+    """
+    if missing_rate_threshold is None:
+        missing_rate_threshold = RiskThresholds.MISSING_RATE_ORDER
     """
     Identify high-risk orders based on missing rate and value.
 

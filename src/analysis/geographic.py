@@ -5,6 +5,8 @@ import pandas as pd
 import numpy as np
 from typing import Dict, List, Any, Tuple
 
+from src.config.risk_thresholds import RiskThresholds
+
 
 def analyze_regional_performance(orders_df: pd.DataFrame) -> pd.DataFrame:
     """
@@ -137,18 +139,20 @@ def analyze_regional_drivers(
 
 def identify_regional_hotspots(
     orders_df: pd.DataFrame,
-    threshold_pct: float = 75.0
+    threshold_pct: float = None
 ) -> Dict[str, List[str]]:
     """
     Identify regions with high fraud indicators.
 
     Args:
         orders_df: Orders DataFrame
-        threshold_pct: Percentile threshold for hotspot
+        threshold_pct: Percentile threshold for hotspot (default: RiskThresholds.GEOGRAPHIC_RANK)
 
     Returns:
         Dictionary with hotspot categories
     """
+    if threshold_pct is None:
+        threshold_pct = RiskThresholds.GEOGRAPHIC_RANK
     regional = analyze_regional_performance(orders_df)
 
     hotspots = {

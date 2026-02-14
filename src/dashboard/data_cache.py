@@ -3,22 +3,26 @@ Dashboard Data Cache Module
 
 Provides caching layer for dashboard data to improve performance.
 Uses time-based cache invalidation and thread-safe operations.
+Includes fallback mechanism for database failures.
 """
 import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Callable, Dict, List, Optional, TypeVar, Union
 import joblib
 from pathlib import Path
 import sys
 from functools import wraps
 import threading
 from scipy import stats
+import logging
 
 # Add project root to path
 sys.path.append(str(Path(__file__).parent.parent.parent))
 
 from src.dashboard.components import COLORS
+
+from src.config.risk_thresholds import RiskThresholds
 
 from src.database.connection import (
     load_orders, load_drivers, load_customers, load_products,
@@ -26,6 +30,10 @@ from src.database.connection import (
 )
 from src.analysis.fraud_patterns import analyze_all_fraud_patterns
 from src.analysis.temporal import get_temporal_summary
+from src.database.manager import get_db_manager
+
+logger = logging.getLogger(__name__)
+T = TypeVar("T")
 
 
 class DashboardCache:
@@ -45,16 +53,99 @@ class DashboardCache:
         >>> cache.refresh_all()  # Force refresh all caches
     """
 
-    def __init__(self, ttl_minutes: int = 15):
+    # Page-specific configurations for lazy loading
+    PAGE_CONFIGS = {
+        'overview': {
+            'ttl_minutes': 15,
+            'required_methods': [
+                'get_overview_metrics',
+                'get_temporal_trends',
+                'get_risk_alerts',
+                'get_risk_distribution',
+                'get_top_suspicious'
+            ],
+            'description': 'Executive overview with KPIs and trends'
+        },
+        'monitor': {
+            'ttl_minutes': 5,
+            'required_methods': [
+                'get_monitoring_dashboard_data',
+                'get_hypothesis_results',
+                'get_model_performance_metrics',
+                'get_trend_analysis',
+                'get_emerging_patterns',
+                'get_hourly_monitoring_data'
+            ],
+            'description': 'Real-time monitoring and MLOps metrics'
+        },
+        'drivers': {
+            'ttl_minutes': 15,
+            'required_methods': [
+                'get_driver_summary',
+                'get_risk_alerts'
+            ],
+            'description': 'Driver performance and risk analysis'
+        },
+        'customers': {
+            'ttl_minutes': 15,
+            'required_methods': [
+                'get_customer_summary',
+                'get_risk_alerts'
+            ],
+            'description': 'Customer behavior and risk profiling'
+        },
+        'geographic': {
+            'ttl_minutes': 10,
+            'required_methods': [
+                'get_regional_summary',
+                'get_risk_alerts'
+            ],
+            'description': 'Regional analysis and hotspots'
+        },
+        'product_analysis': {
+            'ttl_minutes': 8,
+            'required_methods': [
+                'get_product_analysis_workspace'
+            ],
+            'description': 'Product-level missing item analysis'
+        },
+        'methodology': {
+            'ttl_minutes': 30,
+            'required_methods': [
+                'get_methodology_metadata'
+            ],
+            'description': 'Data methodology and quality documentation'
+        },
+        'patterns': {
+            'ttl_minutes': 12,
+            'required_methods': [
+                'get_patterns_analysis'
+            ],
+            'description': 'Fraud pattern detection and visualization'
+        },
+        'model_performance': {
+            'ttl_minutes': 10,
+            'required_methods': [
+                'get_model_performance_metrics',
+                'get_temporal_trends'
+            ],
+            'description': 'ML model performance and drift monitoring'
+        }
+    }
+
+    def __init__(self, ttl_minutes: int = 15, db_manager=None):
         """
         Initialize the dashboard cache.
 
         Args:
-            ttl_minutes: Cache time-to-live in minutes (default: 15)
+            ttl_minutes: Default cache time-to-live in minutes (default: 15)
+            db_manager: Optional DatabaseManager instance for fallback handling
         """
-        self.ttl_minutes = ttl_minutes
+        self.default_ttl_minutes = ttl_minutes
         self._cache: Dict[str, Dict[str, Any]] = {}
         self._lock = threading.RLock()
+        self._db_manager = db_manager if db_manager is not None else get_db_manager()
+        self._fallback_mode = False
 
     def _is_cache_valid(self, cache_key: str) -> bool:
         """
@@ -77,19 +168,22 @@ class DashboardCache:
 
         return datetime.now() < expiry
 
-    def _set_cache(self, cache_key: str, data: Any) -> None:
+    def _set_cache(self, cache_key: str, data: Any, ttl_minutes: Optional[int] = None) -> None:
         """
         Store data in cache with expiry time.
 
         Args:
             cache_key: The cache key
             data: Data to cache
+            ttl_minutes: Custom TTL in minutes (overrides default if provided)
         """
+        actual_ttl = ttl_minutes if ttl_minutes is not None else self.default_ttl_minutes
         with self._lock:
             self._cache[cache_key] = {
                 'data': data,
-                'expiry': datetime.now() + timedelta(minutes=self.ttl_minutes),
-                'created_at': datetime.now()
+                'expiry': datetime.now() + timedelta(minutes=actual_ttl),
+                'created_at': datetime.now(),
+                'ttl_minutes': actual_ttl
             }
 
     def _get_cache(self, cache_key: str) -> Optional[Any]:
@@ -133,9 +227,11 @@ class DashboardCache:
         """
         with self._lock:
             info = {
-                'ttl_minutes': self.ttl_minutes,
+                'default_ttl_minutes': self.default_ttl_minutes,
                 'cached_keys': list(self._cache.keys()),
-                'cache_entries': {}
+                'cache_entries': {},
+                'fallback_mode': self._fallback_mode,
+                'db_health': self._db_manager.check_health() if self._db_manager else None
             }
 
             for key, entry in self._cache.items():
@@ -146,6 +242,149 @@ class DashboardCache:
                 }
 
             return info
+
+    def _with_db_fallback(self, func: Callable[..., T], *args, **kwargs) -> T:
+        """
+        Execute database operation with fallback to mock data.
+
+        Args:
+            func: Function to execute
+            *args: Positional arguments for function
+            **kwargs: Keyword arguments for function
+
+        Returns:
+            Function result or mock data if database fails
+        """
+        if self._db_manager and self._db_manager.use_fallback:
+            # Database has failed before, use decorator's fallback
+            try:
+                return func(*args, **kwargs)
+            except Exception as e:
+                logger.warning(f"Database operation failed (fallback mode): {e}")
+                # Database manager will provide mock data through decorator
+                raise
+
+        # First attempt - try database operation
+        try:
+            return func(*args, **kwargs)
+        except Exception as e:
+            logger.error(f"Database operation failed: {e}")
+
+            # Mark fallback mode and notify database manager
+            self._fallback_mode = True
+            if self._db_manager:
+                self._db_manager.db_available = False
+                self._db_manager.use_fallback = True
+                self._db_manager._last_error = e
+                self._db_manager._last_health_check = datetime.now()
+
+            # Try again through database manager's decorator
+            if self._db_manager:
+                decorated_func = self._db_manager.with_fallback(func)
+                return decorated_func(*args, **kwargs)
+            else:
+                # No database manager - re-raise
+                raise
+
+    def get_page_data(self, page_name: str) -> Dict[str, Any]:
+        """
+        Get page-specific data using lazy loading strategy.
+
+        This method loads only the data required for a specific page,
+        reducing initial load time and memory footprint. Each page has
+        its own TTL configuration based on data freshness requirements.
+
+        Args:
+            page_name: One of 'overview', 'monitor', 'drivers', 'customers',
+                      'geographic', 'product_analysis', 'methodology', 'patterns',
+                      'model_performance'
+
+        Returns:
+            Dictionary with page-specific data containing all required datasets
+
+        Raises:
+            ValueError: If page_name is not recognized
+
+        Example:
+            >>> cache = DashboardCache()
+            >>> overview_data = cache.get_page_data('overview')
+            >>> # Returns only data needed for Overview page
+            >>> monitor_data = cache.get_page_data('monitor')
+            >>> # Returns fresh monitoring data (5-minute TTL)
+        """
+        # Validate page name
+        if page_name not in self.PAGE_CONFIGS:
+            raise ValueError(
+                f"Unknown page: '{page_name}'. "
+                f"Valid pages: {list(self.PAGE_CONFIGS.keys())}"
+            )
+
+        # Get page configuration
+        page_config = self.PAGE_CONFIGS[page_name]
+        page_ttl = page_config['ttl_minutes']
+
+        # Check if page data is already cached and valid
+        cache_key = f'page_{page_name}'
+        cached_data = self._get_cache(cache_key)
+        if cached_data is not None:
+            return cached_data
+
+        # Lazy load only required data for this page
+        page_data = {
+            'page_name': page_name,
+            'page_description': page_config['description'],
+            'ttl_minutes': page_ttl,
+            'generated_at': datetime.now().isoformat()
+        }
+
+        # Load data only for methods this page requires
+        for method_name in page_config['required_methods']:
+            try:
+                # Dynamically call the required method
+                method = getattr(self, method_name)
+                result = method()
+
+                # Store with simplified key (remove 'get_' prefix)
+                data_key = method_name.replace('get_', '')
+                page_data[data_key] = result
+            except Exception as e:
+                # Log error but continue loading other data
+                page_data[f'{method_name}_error'] = str(e)
+
+        # Store page data in cache with page-specific TTL
+        # Note: Temporarily override default TTL for this cache entry
+        original_ttl = self.default_ttl_minutes
+        self.default_ttl_minutes = page_ttl
+
+        try:
+            self._set_cache(cache_key, page_data)
+        finally:
+            # Restore default TTL
+            self.default_ttl_minutes = original_ttl
+
+        return page_data
+
+    def clear_page_cache(self, page_name: Optional[str] = None) -> None:
+        """
+        Clear page-specific cache entries.
+
+        Args:
+            page_name: Specific page to clear, or None to clear all page caches
+
+        Example:
+            >>> cache.clear_page_cache('monitor')  # Clear only monitor cache
+            >>> cache.clear_page_cache()  # Clear all page caches
+        """
+        if page_name is None:
+            # Clear all page caches (keys that start with 'page_')
+            with self._lock:
+                page_keys = [k for k in self._cache.keys() if k.startswith('page_')]
+                for key in page_keys:
+                    del self._cache[key]
+        else:
+            # Clear specific page cache
+            cache_key = f'page_{page_name}'
+            self.clear_cache(cache_key)
 
     # -------------------------------------------------------------------------
     # Data Loading with Caching
@@ -511,16 +750,20 @@ class DashboardCache:
         self._set_cache(cache_key, result)
         return result
 
-    def get_risk_alerts(self, threshold: float = 70.0) -> pd.DataFrame:
+    def get_risk_alerts(self, threshold: float = None) -> pd.DataFrame:
         """
         Get high-risk alerts for dashboard.
 
         Args:
-            threshold: Minimum risk score for alerts
+            threshold: Minimum risk score for alerts (default: from RiskThresholds.ALERT)
 
         Returns:
             DataFrame with risk alerts
         """
+        # Use configured threshold if not provided
+        if threshold is None:
+            threshold = RiskThresholds.ALERT
+
         cache_key = f'risk_alerts_{threshold}'
         cached = self._get_cache(cache_key)
         if cached is not None:
@@ -560,9 +803,10 @@ class DashboardCache:
                 'recommendation': 'Verify claims and consider enhanced verification'
             })
 
-        # High-risk regions
+        # High-risk regions (using threshold from RiskThresholds)
         overall_missing_rate = regional_summary['missing_rate'].mean()
-        high_risk_regions = regional_summary[regional_summary['missing_rate'] > overall_missing_rate * 1.2]
+        geographic_threshold = overall_missing_rate * (RiskThresholds.GEOGRAPHIC_RANK / 100)
+        high_risk_regions = regional_summary[regional_summary['missing_rate'] > geographic_threshold]
         for _, row in high_risk_regions.iterrows():
             alerts.append({
                 'entity_type': 'Region',
@@ -977,40 +1221,278 @@ class DashboardCache:
         Returns:
             Dictionary with methodology metadata
         """
-        cache_key = 'methodology_metadata'
+        cache_key = 'methodology_metadata_v2'
         cached = self._get_cache(cache_key)
+        required_meta_keys = {
+            'generated_at',
+            'total_orders',
+            'total_drivers',
+            'total_customers',
+            'total_products',
+            'date_start',
+            'date_end',
+            'quality_score',
+            'total_issues',
+            'quality_issue_breakdown',
+            'schema_catalog',
+            'pipeline_steps',
+            'feature_catalog',
+            'data_quality',
+            'features',
+        }
         if cached is not None:
-            return cached
+            if isinstance(cached, dict) and required_meta_keys.issubset(set(cached.keys())):
+                return cached
+            self.clear_cache(cache_key)
 
         orders = self._load_orders_with_features()
         drivers = load_drivers()
         customers = load_customers()
         products = load_products()
 
-        # Data Quality Checks
+        def _count_missing_or_blank(df: pd.DataFrame, column: str) -> int:
+            if column not in df.columns:
+                return 0
+            series = df[column]
+            missing_count = int(series.isna().sum())
+            if pd.api.types.is_string_dtype(series) or series.dtype == object:
+                blank_count = int(
+                    series[series.notna()].astype(str).str.strip().eq("").sum()
+                )
+                return missing_count + blank_count
+            return missing_count
+
+        def _count_negative(df: pd.DataFrame, column: str) -> int:
+            if column not in df.columns:
+                return 0
+            series = pd.to_numeric(df[column], errors='coerce')
+            return int((series < 0).sum())
+
+        def _count_future_dates(df: pd.DataFrame, column: str) -> int:
+            if column not in df.columns:
+                return 0
+            series = pd.to_datetime(df[column], errors='coerce')
+            return int((series > pd.Timestamp.now()).sum())
+
+        def _safe_rate(count: int, total: int) -> float:
+            return float((count / total) * 100) if total > 0 else 0.0
+
+        def _severity(rate_pct: float) -> str:
+            if rate_pct >= 5.0:
+                return "Critical"
+            if rate_pct >= 2.0:
+                return "High"
+            if rate_pct >= 0.5:
+                return "Medium"
+            return "Low"
+
+        def _schema_catalog_entry(
+            df: pd.DataFrame,
+            source: str,
+            primary_key: str,
+            grain: str,
+            key_links: List[str],
+        ) -> Dict:
+            total_rows = int(len(df))
+            columns = []
+            for column in df.columns.tolist():
+                null_count = int(df[column].isna().sum())
+                columns.append({
+                    'column': column,
+                    'dtype': str(df[column].dtype),
+                    'null_count': null_count,
+                    'null_pct': round(_safe_rate(null_count, total_rows), 2),
+                })
+            return {
+                'source': source,
+                'primary_key': primary_key,
+                'grain': grain,
+                'key_links': key_links,
+                'row_count': total_rows,
+                'column_count': int(len(df.columns)),
+                'columns': columns,
+            }
+
+        total_orders = int(len(orders))
+        total_drivers = int(len(drivers))
+        total_customers = int(len(customers))
+        total_products = int(len(products))
+
+        orders_missing_driver = _count_missing_or_blank(orders, 'driver_id')
+        orders_missing_customer = _count_missing_or_blank(orders, 'customer_id')
+        orders_negative_amount = _count_negative(orders, 'order_amount')
+        orders_future_date = _count_future_dates(orders, 'order_date')
+        drivers_missing_age = _count_missing_or_blank(drivers, 'age')
+        customers_missing_age = _count_missing_or_blank(customers, 'customer_age')
+        products_missing_category = _count_missing_or_blank(products, 'category')
+
+        order_level_issues = (
+            orders_missing_driver
+            + orders_missing_customer
+            + orders_negative_amount
+            + orders_future_date
+        )
+        quality_score = max(
+            0.0,
+            100.0 - ((order_level_issues / max(total_orders, 1)) * 100.0),
+        )
+
+        issue_rows = [
+            ('Orders missing driver', orders_missing_driver, total_orders, 'Orders'),
+            ('Orders missing customer', orders_missing_customer, total_orders, 'Orders'),
+            ('Orders with negative amount', orders_negative_amount, total_orders, 'Orders'),
+            ('Orders in future date', orders_future_date, total_orders, 'Orders'),
+            ('Drivers missing age', drivers_missing_age, total_drivers, 'Drivers'),
+            ('Customers missing age', customers_missing_age, total_customers, 'Customers'),
+            ('Products missing category', products_missing_category, total_products, 'Products'),
+        ]
+        quality_issue_breakdown = []
+        for issue, count, total, scope in issue_rows:
+            rate_pct = _safe_rate(count, total)
+            quality_issue_breakdown.append({
+                'issue': issue,
+                'scope': scope,
+                'count': int(count),
+                'rate_pct': round(rate_pct, 4),
+                'severity': _severity(rate_pct),
+            })
+
+        date_start = "N/A"
+        date_end = "N/A"
+        if 'order_date' in orders.columns and not orders.empty:
+            order_dates = pd.to_datetime(orders['order_date'], errors='coerce').dropna()
+            if not order_dates.empty:
+                date_start = order_dates.min().strftime('%Y-%m-%d')
+                date_end = order_dates.max().strftime('%Y-%m-%d')
+
         dq_stats = {
-            'orders_total': len(orders),
-            'orders_missing_driver': int(orders['driver_id'].isnull().sum() + (orders['driver_id'] == '').sum()),
-            'orders_missing_customer': int(orders['customer_id'].isnull().sum() + (orders['customer_id'] == '').sum()),
-            'orders_negative_amount': int((orders['order_amount'] < 0).sum()),
-            'drivers_missing_age': int(drivers['age'].isnull().sum()),
+            'orders_total': total_orders,
+            'orders_missing_driver': orders_missing_driver,
+            'orders_missing_customer': orders_missing_customer,
+            'orders_negative_amount': orders_negative_amount,
+            'drivers_missing_age': drivers_missing_age,
+            'orders_future_date': orders_future_date,
+            'customers_missing_age': customers_missing_age,
+            'products_missing_category': products_missing_category,
+            'order_level_issues': int(order_level_issues),
+            'quality_score': round(float(quality_score), 2),
         }
-        
-        # Calculate raw counts info
+
+        schema_catalog = {
+            'orders': _schema_catalog_entry(
+                orders,
+                source='Operational Database (ETL Extracted)',
+                primary_key='order_id',
+                grain='One row per delivery attempt',
+                key_links=['driver_id', 'customer_id', 'region'],
+            ),
+            'drivers': _schema_catalog_entry(
+                drivers,
+                source='HR & Partner Systems',
+                primary_key='driver_id',
+                grain='One row per driver',
+                key_links=['driver_name', 'age', 'trips'],
+            ),
+            'customers': _schema_catalog_entry(
+                customers,
+                source='User Accounts',
+                primary_key='customer_id',
+                grain='One row per customer',
+                key_links=['customer_name', 'customer_age'],
+            ),
+            'products': _schema_catalog_entry(
+                products,
+                source='Inventory Management',
+                primary_key='product_id',
+                grain='One row per product',
+                key_links=['product_name', 'category', 'price'],
+            ),
+        }
+
+        pipeline_steps = [
+            {
+                'step': 'Currency Normalization',
+                'description': "Strip '$' and ',' symbols from order_amount and cast to float.",
+                'validation': 'Check for negative values and non-numeric coercion results.',
+            },
+            {
+                'step': 'Date Parsing',
+                'description': 'Standardize order_date and delivery_hour fields to analytics-ready types.',
+                'validation': 'Flag null parsing outputs and future-date outliers.',
+            },
+            {
+                'step': 'Null Imputation',
+                'description': 'Impute missing items_missing and items_delivered with zero.',
+                'validation': 'Verify post-imputation null count equals zero for these fields.',
+            },
+            {
+                'step': 'Feature Derivation',
+                'description': 'Build total_items, missing_rate, has_missing, and temporal fields.',
+                'validation': 'Ensure missing_rate stays in [0, 100] and total_items >= 0.',
+            },
+            {
+                'step': 'Quality Controls',
+                'description': 'Compute missing IDs, demographic gaps, and financial anomalies.',
+                'validation': 'Publish issue breakdown with severity tiers and rates.',
+            },
+        ]
+
+        feature_catalog = [
+            {
+                'feature': 'driver_risk_score',
+                'formula': 'Scaled composite of missing_rate and pct_orders_with_missing.',
+                'owner': 'Fraud Ops Analytics',
+                'purpose': 'Prioritize drivers for audit and intervention.',
+            },
+            {
+                'feature': 'customer_spending_segment',
+                'formula': 'Quantile segmentation over customer total_spent.',
+                'owner': 'Customer Intelligence',
+                'purpose': 'Contextualize fraud exposure by spending profile.',
+            },
+            {
+                'feature': 'missing_item_rate',
+                'formula': '(items_missing / (items_delivered + items_missing)) * 100',
+                'owner': 'Data Science',
+                'purpose': 'Primary fraud-loss quality indicator.',
+            },
+            {
+                'feature': 'regional_performance_index',
+                'formula': 'Weighted blend of missing rate, volume, and revenue share by region.',
+                'owner': 'Operations Intelligence',
+                'purpose': 'Rank regions by combined risk and business impact.',
+            },
+            {
+                'feature': 'delivery_hour',
+                'formula': "Extract hour bucket from delivery timestamp.",
+                'owner': 'Fraud Monitoring',
+                'purpose': 'Track temporal concentration of anomalies.',
+            },
+        ]
+
         metadata = {
-            'total_orders': int(len(orders)),
-            'total_drivers': int(len(drivers)),
-            'total_customers': int(len(customers)),
-            'total_products': int(len(products)),
-            'date_start': orders['order_date'].min().strftime('%Y-%m-%d') if not orders.empty else "N/A",
-            'date_end': orders['order_date'].max().strftime('%Y-%m-%d') if not orders.empty else "N/A",
+            'generated_at': datetime.now().isoformat(),
+            'total_orders': total_orders,
+            'total_drivers': total_drivers,
+            'total_customers': total_customers,
+            'total_products': total_products,
+            'date_start': date_start,
+            'date_end': date_end,
+            'quality_score': round(float(quality_score), 2),
+            'total_issues': int(order_level_issues),
+            'quality_issue_breakdown': quality_issue_breakdown,
+            'schema_catalog': schema_catalog,
+            'pipeline_steps': pipeline_steps,
+            'feature_catalog': feature_catalog,
             'data_quality': dq_stats,
             'features': [
-                'driver_risk_score', 'customer_spending_segment', 
-                'missing_item_rate', 'regional_performance_index'
-            ]
+                'driver_risk_score',
+                'customer_spending_segment',
+                'missing_item_rate',
+                'regional_performance_index',
+            ],
         }
-        
+
         self._set_cache(cache_key, metadata)
         return metadata
 

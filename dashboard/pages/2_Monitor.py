@@ -39,11 +39,22 @@ load_css()
 
 @st.cache_data(ttl=300)
 def get_dashboard_data():
+    """
+    Fetch all necessary data for the monitor page using lazy loading.
+    This method loads only the data required for the Monitor page,
+    reducing load time and using a 5-minute TTL for real-time monitoring.
+    """
     cache = get_default_cache()
-    data = cache.get_monitoring_dashboard_data()
-    hypotheses = cache.get_hypothesis_results()
-    patterns = cache.get_emerging_patterns()
-    performance = cache.get_model_performance_metrics()
+
+    # Use lazy loading - only loads data needed for this page
+    page_data = cache.get_page_data('monitor')
+
+    # Extract required datasets from page data
+    data = page_data['monitoring_dashboard_data']
+    hypotheses = page_data['hypothesis_results']
+    patterns = page_data['emerging_patterns']
+    performance = page_data['model_performance_metrics']
+
     return data, hypotheses, patterns, performance
 
 
@@ -200,12 +211,12 @@ def main():
     # -------------------------------------------------------------------------
     st.markdown("### Operational Intelligence")
     st.markdown(f"""
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
+    <div class="dashboard-header-row">
         <div>
             <h1 style="margin:0; font-size: 2.5rem;">Fraud Monitor Intelligence</h1>
             <p class="text-muted">Real-time monitoring and hypothesis validation engine for Central Florida.</p>
         </div>
-        <div style="text-align: right;">
+        <div class="scope-badge-container">
              <span class="badge badge-success">System Online</span>
         </div>
     </div>
@@ -214,7 +225,7 @@ def main():
     # -------------------------------------------------------------------------
     # 2. Executive Dashboard (Simulated "Top-Level" View)
     # -------------------------------------------------------------------------
-    st.markdown("#### 📊 Executive Summary")
+    st.markdown("#### Executive Summary")
     
     k1, k2, k3, k4, k5 = st.columns(5)
     with k1:
@@ -266,7 +277,7 @@ def main():
     # -------------------------------------------------------------------------
     # 3. Analytical Approach & Hypotheses (The "Why")
     # -------------------------------------------------------------------------
-    st.markdown("#### 🧬 Analytical Approach & Hypotheses")
+    st.markdown("#### Analytical Approach & Hypotheses")
     st.caption("Validating strategic assumptions with statistical rigor to drive detection logic.")
 
     active_hypotheses = hypotheses  # From cache
@@ -291,7 +302,7 @@ def main():
                 
                 # Show visual evidence if available
                 if h.get('visual_data') and h['status'] == 'Validated':
-                    with st.expander("📊 View Evidence", expanded=False):
+                    with st.expander("View Evidence", expanded=False):
                         if h['id'] == 'H1': # Driver Experience
                             df_ev = pd.DataFrame(h['visual_data'])
                             fig = px.scatter(
@@ -321,9 +332,9 @@ def main():
 
 
     # -------------------------------------------------------------------------
-    # 4. Operational Watchtower (Real-Time Intelligence)
+    # 4. Operational (Real-Time Intelligence)
     # -------------------------------------------------------------------------
-    st.markdown("#### 🔭 Operational Watchtower")
+    st.markdown("#### Operational")
     st.caption("Live system monitoring with statistical anomaly detection and threat assessment.")
     
     # Get hourly monitoring data
@@ -414,15 +425,33 @@ def main():
         mode='lines+markers',
         marker=dict(size=6, color=COLORS['walmart_blue'])
     ))
-    
+
     # Anomaly points
     if len(anomaly_data) > 0:
         fig.add_trace(go.Scatter(
             x=anomaly_data['hour'],
             y=anomaly_data['missing_rate'],
             name='Anomaly Detected',
-            mode='markers',
-            marker=dict(size=12, color=COLORS['critical'], symbol='x', line=dict(width=2, color='white'))
+            mode='markers+text',
+            marker=dict(size=12, color=COLORS['critical'], symbol='x', line=dict(width=2, color='white')),
+            text=anomaly_data['missing_rate'].map(lambda value: f"{value:.2f}%"),
+            textposition='top center'
+        ))
+
+    # Highlight relevant point labels (peak, trough, and latest hour)
+    if not hourly_df.empty:
+        key_indices = [hourly_df["missing_rate"].idxmax(), hourly_df["missing_rate"].idxmin(), hourly_df.index[-1]]
+        key_points = hourly_df.loc[list(dict.fromkeys(key_indices))]
+        fig.add_trace(go.Scatter(
+            x=key_points["hour"],
+            y=key_points["missing_rate"],
+            name="Key Labels",
+            mode="markers+text",
+            marker=dict(size=8, color=COLORS["walmart_blue"], line=dict(width=1, color="white")),
+            text=key_points["missing_rate"].map(lambda value: f"{value:.2f}%"),
+            textposition="bottom center",
+            showlegend=False,
+            hovertemplate="Hour: %{x}<br>Missing Rate: %{y:.2f}%<extra></extra>",
         ))
     
     fig.update_layout(
@@ -431,9 +460,9 @@ def main():
         yaxis_title="Missing Rate (%)",
         hovermode="x unified",
         height=400,
-        font_family="Inter",
-        plot_bgcolor='white',
-        paper_bgcolor='white',
+        font_family=COLORS['font_family'],
+        plot_bgcolor=COLORS['plot_bg'],
+        paper_bgcolor=COLORS['paper_bg'],
         margin=dict(t=50, l=10, r=10, b=10),
         legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1)
     )
@@ -443,7 +472,7 @@ def main():
     
     st.plotly_chart(fig, use_container_width=True, key="hourly_anomaly_chart")
     
-    st.caption("📊 **Statistical Grounding:** Anomalies are defined as data points exceeding 2 standard deviations (σ) above the hourly baseline. This method accounts for natural hourly variance in delivery patterns.")
+    st.caption("**Statistical Grounding:** Anomalies are defined as data points exceeding 2 standard deviations (σ) above the hourly baseline. This method accounts for natural hourly variance in delivery patterns.")
     
     st.markdown("---")
     

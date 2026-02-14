@@ -6,6 +6,8 @@ import numpy as np
 from typing import Dict, List, Tuple, Any
 from dataclasses import dataclass
 
+from src.config.risk_thresholds import RiskThresholds
+
 
 @dataclass
 class FraudIndicator:
@@ -20,8 +22,26 @@ class FraudIndicator:
 def detect_driver_fraud_patterns(
     orders_df: pd.DataFrame,
     drivers_df: pd.DataFrame,
-    threshold_std: float = 2.0
+    threshold_std: float = None
 ) -> List[FraudIndicator]:
+    """
+    Detect fraud patterns related to drivers.
+
+    Patterns checked:
+    - High missing rate compared to average
+    - High percentage of orders with missing items
+    - Unusual delivery time patterns
+
+    Args:
+        orders_df: Orders DataFrame
+        drivers_df: Drivers DataFrame
+        threshold_std: Standard deviations for anomaly (default: RiskThresholds.ANOMALY_STD)
+
+    Returns:
+        List of FraudIndicator objects
+    """
+    if threshold_std is None:
+        threshold_std = RiskThresholds.ANOMALY_STD
     """
     Detect fraud patterns related to drivers.
 
@@ -212,8 +232,25 @@ def detect_customer_fraud_patterns(
 def detect_collusion_patterns(
     orders_df: pd.DataFrame,
     min_interactions: int = 3,
-    threshold_rate: float = 50.0
+    threshold_rate: float = None
 ) -> List[FraudIndicator]:
+    """
+    Detect potential collusion between drivers and customers.
+
+    Patterns checked:
+    - Same driver-customer pair with high missing rate
+    - Unusual frequency of interactions
+
+    Args:
+        orders_df: Orders DataFrame
+        min_interactions: Minimum interactions to consider
+        threshold_rate: Missing rate threshold (default: RiskThresholds.MISSING_RATE_FRAUD)
+
+    Returns:
+        List of FraudIndicator objects
+    """
+    if threshold_rate is None:
+        threshold_rate = RiskThresholds.MISSING_RATE_FRAUD
     """
     Detect potential collusion between drivers and customers.
 

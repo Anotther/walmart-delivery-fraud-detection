@@ -48,12 +48,25 @@ load_css()
 ITEM_VALUE_USD = 15
 
 
-@st.cache_data(ttl=600)
+@st.cache_data(ttl=900)  # 15-minute TTL for driver data
 def load_base_data():
+    """
+    Load base data for drivers page using lazy loading where possible.
+    This method uses a 15-minute TTL as driver performance is stable.
+    """
     cache = get_default_cache()
+
+    # Use lazy loading - only loads data needed for drivers page
+    page_data = cache.get_page_data('drivers')
+
+    # Extract driver summary from page data
+    drivers_summary = page_data['driver_summary']
+
+    # Load additional data needed for the page
     orders = cache._load_orders_with_features()
     drivers = load_drivers()
-    return orders, drivers
+
+    return orders, drivers, drivers_summary
 
 
 @st.cache_data(ttl=600)
@@ -274,8 +287,8 @@ def driver_radar_chart(driver_row: pd.Series, driver_df: pd.DataFrame) -> go.Fig
     fig.update_layout(
         polar=dict(radialaxis=dict(visible=True, range=[0, 100])),
         margin=dict(t=20, b=20, l=40, r=40),
-        font_family="Inter",
-        paper_bgcolor="white",
+        font_family=COLORS['font_family'],
+        paper_bgcolor=COLORS['paper_bg'],
         showlegend=True
     )
     return fig
@@ -306,9 +319,9 @@ def build_monthly_trend_chart(monthly_df: pd.DataFrame, anomalies: dict, target_
     ))
     fig.update_layout(
         title="Orders vs Missing Rate (Monthly)",
-        plot_bgcolor="white",
-        paper_bgcolor="white",
-        font_family="Inter",
+        plot_bgcolor=COLORS['plot_bg'],
+        paper_bgcolor=COLORS['paper_bg'],
+        font_family=COLORS['font_family'],
         margin=dict(t=40, l=10, r=10, b=10),
         yaxis=dict(title="Orders", showgrid=True, gridcolor="rgba(243, 244, 246, 0.4)"),
         yaxis2=dict(title="Missing Rate (%)", overlaying="y", side="right", showgrid=False),
@@ -332,7 +345,7 @@ def build_monthly_trend_chart(monthly_df: pd.DataFrame, anomalies: dict, target_
         xref="paper",
         y=target_rate,
         yref="y2",
-        text=f"Meta {target_rate:.1f}%",
+        text=f"Target {target_rate:.1f}%",
         showarrow=False,
         font=dict(color=COLORS["warning"], size=11),
         xanchor="right",
@@ -346,9 +359,9 @@ def build_monthly_trend_chart(monthly_df: pd.DataFrame, anomalies: dict, target_
         last_row = monthly_df.iloc[-1]
 
         for _, row, label, color in [
-            (max_idx, monthly_df.loc[max_idx], "Pico", COLORS["critical"]),
-            (min_idx, monthly_df.loc[min_idx], "Mínimo", COLORS["success"]),
-            (None, last_row, "Último", COLORS["walmart_blue"])
+            (max_idx, monthly_df.loc[max_idx], "Peak", COLORS["critical"]),
+            (min_idx, monthly_df.loc[min_idx], "Minimum", COLORS["success"]),
+            (None, last_row, "Latest", COLORS["walmart_blue"])
         ]:
             fig.add_annotation(
                 x=row["month_name"],
@@ -375,7 +388,7 @@ def build_monthly_trend_chart(monthly_df: pd.DataFrame, anomalies: dict, target_
             fig.add_annotation(
                 x=month_label,
                 y=anomaly["missing_rate"],
-                text=f"Anomalia: {anomaly['missing_rate']:.2f}%",
+                text=f"Anomaly: {anomaly['missing_rate']:.2f}%",
                 showarrow=True,
                 arrowhead=2,
                 ax=0,
@@ -471,12 +484,12 @@ def compute_regression_metrics(driver_df: pd.DataFrame) -> dict:
 def correlation_strength(value: float) -> str:
     abs_val = abs(value)
     if abs_val >= 0.7:
-        return "Forte"
+        return "Strong"
     if abs_val >= 0.4:
-        return "Moderada"
+        return "Moderate"
     if abs_val >= 0.2:
-        return "Fraca"
-    return "Muito fraca"
+        return "Weak"
+    return "Very weak"
 
 
 def build_consistency_checks(
@@ -493,36 +506,36 @@ def build_consistency_checks(
 
     checks = [
         {
-            "dimension": "Reconciliação",
-            "rule": "Itens faltantes na série mensal reconciliam com o total filtrado",
+            "dimension": "Reconciliation",
+            "rule": "Missing items in the monthly series reconcile with the filtered total",
             "status": np.isclose(monthly_missing, total_missing),
             "current": f"{monthly_missing:.0f}",
             "reference": f"{total_missing:.0f}",
-            "impact": "Evita divergência entre tendência e KPI agregado."
+            "impact": "Prevents divergence between trend and aggregate KPI."
         },
         {
-            "dimension": "Taxa",
-            "rule": "Taxa mensal agregada é igual ao KPI de Missing Rate",
+            "dimension": "Rate",
+            "rule": "Aggregated monthly rate matches the Missing Rate KPI",
             "status": np.isclose(monthly_rate, missing_rate, atol=0.01),
             "current": f"{monthly_rate:.2f}%",
             "reference": f"{missing_rate:.2f}%",
-            "impact": "Garante consistência do denominador usado nas taxas."
+            "impact": "Ensures denominator consistency across rate calculations."
         },
         {
-            "dimension": "Amostra",
-            "rule": "Volume de itens permanece válido após aplicação de filtros",
+            "dimension": "Sample",
+            "rule": "Item volume remains valid after filters are applied",
             "status": total_items > 0,
             "current": f"{total_items:.0f}",
             "reference": "> 0",
-            "impact": "Confirma que os visuais não estão baseados em amostra vazia."
+            "impact": "Confirms visuals are not based on an empty sample."
         },
         {
-            "dimension": "Completude",
-            "rule": "Campos críticos não possuem valores nulos",
+            "dimension": "Completeness",
+            "rule": "Critical fields contain no null values",
             "status": not null_critical,
-            "current": "Sem nulos" if not null_critical else "Nulos detectados",
-            "reference": "Sem nulos",
-            "impact": "Reduz risco de distorção em métricas operacionais."
+            "current": "No nulls" if not null_critical else "Nulls detected",
+            "reference": "No nulls",
+            "impact": "Reduces distortion risk in operational metrics."
         },
     ]
     return checks
@@ -530,7 +543,7 @@ def build_consistency_checks(
 
 def render_consistency_table(checks: list) -> None:
     if not checks:
-        st.info("Sem validações disponíveis para o período selecionado.")
+        st.info("No validation checks available for the selected period.")
         return
 
     ok_count = sum(1 for c in checks if c.get("status"))
@@ -539,7 +552,7 @@ def render_consistency_table(checks: list) -> None:
     rows_html = ""
     for c in checks:
         status_ok = bool(c.get("status"))
-        status_label = "Conforme" if status_ok else "Falha"
+        status_label = "Pass" if status_ok else "Fail"
         status_class = "ok" if status_ok else "fail"
         dimension = escape(str(c.get("dimension", "-")))
         rule = escape(str(c.get("rule", "-")))
@@ -662,24 +675,24 @@ def render_consistency_table(checks: list) -> None:
     <div class="cons-wrap">
       <div class="cons-head">
         <div>
-          <p class="cons-title">Validação de Consistência dos Dados Exibidos</p>
-          <p class="cons-sub">Verifica se KPIs, tendências e filtros compartilham a mesma base analítica.</p>
+          <p class="cons-title">Displayed Data Consistency Validation</p>
+          <p class="cons-sub">Verifies that KPIs, trends, and filters share the same analytical base.</p>
         </div>
         <div class="cons-kpis">
-          <span class="cons-kpi">Regras: {len(checks)}</span>
-          <span class="cons-kpi">Conformes: {ok_count}</span>
-          <span class="cons-kpi fail">Falhas: {fail_count}</span>
+          <span class="cons-kpi">Rules: {len(checks)}</span>
+          <span class="cons-kpi">Passed: {ok_count}</span>
+          <span class="cons-kpi fail">Failed: {fail_count}</span>
         </div>
       </div>
       <table>
         <thead>
           <tr>
-            <th>Dimensão</th>
-            <th>Regra de Validação</th>
-            <th>Atual</th>
-            <th>Referência</th>
+            <th>Dimension</th>
+            <th>Validation Rule</th>
+            <th>Current</th>
+            <th>Reference</th>
             <th>Status</th>
-            <th>Impacto</th>
+            <th>Impact</th>
           </tr>
         </thead>
         <tbody>
@@ -700,14 +713,14 @@ def render_detail_table(
 ) -> None:
     """Render a detailed table using the same visual language as consistency validation."""
     if dataframe.empty:
-        st.info("Sem dados suficientes para exibir a tabela.")
+        st.info("Insufficient data to render the table.")
         return
 
     def _format_cell(value):
         if pd.isna(value):
             return "-"
         if isinstance(value, (bool, np.bool_)):
-            return "Sim" if bool(value) else "Não"
+            return "Yes" if bool(value) else "No"
         if isinstance(value, (np.integer, int)):
             return f"{int(value):,}"
         if isinstance(value, (np.floating, float)):
@@ -1068,37 +1081,37 @@ def main():
     )
     st.markdown("### Operational Intelligence")
     st.markdown(f"""
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
+    <div class="dashboard-header-row">
         <div>
             <h1 style="margin:0; font-size: 2.5rem;">Driver Intelligence Monitor</h1>
-            <p class="text-muted">Monitoramento contínuo de performance e risco por motorista.</p>
+            <p class="text-muted">Continuous monitoring of driver performance and risk.</p>
         </div>
-        <div style="text-align: right;">
+        <div class="scope-badge-container">
              <span class="badge badge-success">System Online</span>
         </div>
     </div>
     """, unsafe_allow_html=True)
 
-    orders, drivers = load_base_data()
+    orders, drivers, drivers_summary = load_base_data()
 
     # ------------------------------------------------------------------
     # Filters
     # ------------------------------------------------------------------
-    st.markdown("#### Filtros Operacionais")
+    st.markdown("#### Operational Filters")
     min_date = orders["order_date"].min().date() if not orders.empty else date.today()
     max_date = orders["order_date"].max().date() if not orders.empty else date.today()
 
     f1, f2, f3, f4 = st.columns([1.5, 1, 1, 1.5])
     with f1:
-        date_range = st.date_input("Período", value=(min_date, max_date), min_value=min_date, max_value=max_date)
+        date_range = st.date_input("Period", value=(min_date, max_date), min_value=min_date, max_value=max_date)
     with f2:
         risk_filter = st.multiselect("Risk", ["Critical", "High", "Medium", "Low"], default=["Critical", "High"])
     with f3:
-        experience_filter = st.multiselect("Experiência", ["Novice", "Intermediate", "Experienced", "Expert"])
+        experience_filter = st.multiselect("Experience", ["Novice", "Intermediate", "Experienced", "Expert"])
     with f4:
-        region_filter = st.multiselect("Região", sorted(orders["region"].dropna().unique().tolist()))
+        region_filter = st.multiselect("Region", sorted(orders["region"].dropna().unique().tolist()))
 
-    search = st.text_input("Buscar motorista (nome ou ID)", placeholder="WDID...")
+    search = st.text_input("Search driver (name or ID)", placeholder="WDID...")
 
     # Filter orders by date/region
     if isinstance(date_range, tuple) and len(date_range) == 2:
@@ -1129,13 +1142,13 @@ def main():
         ]
 
     if driver_snapshot.empty:
-        st.warning("Nenhum motorista encontrado para os filtros atuais.")
+        st.warning("No drivers found for the current filters.")
         return
 
     # ------------------------------------------------------------------
     # Executive Summary
     # ------------------------------------------------------------------
-    st.markdown("#### Resumo Executivo")
+    st.markdown("#### Executive Summary")
     total_items = orders_filtered["items_delivered"].sum() + orders_filtered["items_missing"].sum()
     total_missing = orders_filtered["items_missing"].sum()
     missing_rate = (total_missing / total_items * 100) if total_items > 0 else 0
@@ -1153,56 +1166,56 @@ def main():
         render_strategic_kpi(
             "Drivers Ativos",
             int(active_drivers),
-            tooltip="Drivers com entregas no período.",
+            tooltip="Drivers with deliveries in the selected period.",
         )
     with k2:
         render_strategic_kpi(
             "Missing Rate",
             f"{missing_rate:.2f}%",
-            tooltip="Percentual de itens faltantes sobre o total de itens no período.",
+            tooltip="Percentage of missing items over total items in the selected period.",
             delta=f"{missing_rate - optimized_rate:+.2f}pp",
             delta_color="inverse",
         )
     with k3:
         render_strategic_kpi(
-            "Drivers Críticos",
+            "Critical Drivers",
             int(len(critical_drivers)),
-            tooltip="Motoristas com classificação de risco crítico no período.",
+            tooltip="Drivers classified as critical risk in the selected period.",
         )
     with k4:
         render_strategic_kpi(
-            "Perda Estimada",
+            "Estimated Loss",
             f"${total_missing * ITEM_VALUE_USD:,.0f}",
-            tooltip="Estimativa financeira: itens faltantes multiplicados por US$15.",
+            tooltip="Financial estimate: missing items multiplied by USD 15.",
         )
     with k5:
         render_strategic_kpi(
-            "Impacto Potencial",
+            "Potential Impact",
             f"${savings_proxy:,.0f}",
-            tooltip="Economia potencial no cenário sem motoristas críticos.",
+            tooltip="Potential savings in the scenario without critical drivers.",
             color=COLORS["success"],
         )
 
     # ------------------------------------------------------------------
     # Storytelling
     # ------------------------------------------------------------------
-    st.markdown("#### Narrativa de Monitoramento")
+    st.markdown("#### Monitoring Narrative")
     s1, s2, s3, s4 = st.columns(4)
     with s1:
-        insight_card("Problema", "Perdas recorrentes em entregas afetam margem e confiança.")
+        insight_card("Problem", "Recurring delivery losses impact margin and customer trust.")
     with s2:
-        insight_card("Abordagem", "Hipóteses testadas com estatística, segmentação e séries temporais.")
+        insight_card("Approach", "Hypotheses tested with statistics, segmentation, and time series.")
     with s3:
-        insight_card("Descobertas", "Drivers e períodos críticos concentram picos de missing rate.")
+        insight_card("Findings", "Critical drivers and periods concentrate missing-rate peaks.")
     with s4:
-        insight_card("Impacto", "Intervenções focadas reduzem exposição e priorizam auditoria.")
+        insight_card("Impact", "Focused interventions reduce exposure and prioritize auditing.")
 
     st.markdown("---")
 
     # ------------------------------------------------------------------
     # Hypotheses & Methods
     # ------------------------------------------------------------------
-    st.markdown("#### Hipóteses & Estratégias Analíticas")
+    st.markdown("#### Hypotheses & Analytical Strategies")
 
     # Prefer session-cached hypotheses (shared with Monitor page), fallback to local recomputation.
     if "drivers_hypotheses" not in st.session_state:
@@ -1235,14 +1248,14 @@ def main():
                         unsafe_allow_html=True
                     )
 
-                st.write(h.get("result_text", "Sem resultado"))
+                st.write(h.get("result_text", "No result"))
 
                 meta_col1, meta_col2, meta_col3 = st.columns(3)
                 with meta_col1:
-                    st.caption("Método")
+                    st.caption("Method")
                     st.write(h.get("methodology", "-"))
                 with meta_col2:
-                    st.caption(h.get("metric_name", "Métrica"))
+                    st.caption(h.get("metric_name", "Metric"))
                     metric_val = h.get("metric_value")
                     if isinstance(metric_val, (int, float, np.number)) and np.isfinite(float(metric_val)):
                         st.write(f"{float(metric_val):.3f}")
@@ -1261,14 +1274,14 @@ def main():
     # ------------------------------------------------------------------
     # Monitoring Visuals
     # ------------------------------------------------------------------
-    st.markdown("#### Monitoramento e Evidências")
-    region_label = ", ".join(region_filter) if region_filter else "Todas"
+    st.markdown("#### Monitoring & Evidence")
+    region_label = ", ".join(region_filter) if region_filter else "All"
     st.markdown(
         f"""
         <div class="drivers-context-strip">
-            <span class="drivers-context-pill">Período: {start_date.strftime('%Y-%m-%d')} → {end_date.strftime('%Y-%m-%d')}</span>
-            <span class="drivers-context-pill">Regiões: {escape(region_label)}</span>
-            <span class="drivers-context-pill">Atualizado: {pd.Timestamp.now().strftime('%Y-%m-%d %H:%M')}</span>
+            <span class="drivers-context-pill">Period: {start_date.strftime('%Y-%m-%d')} → {end_date.strftime('%Y-%m-%d')}</span>
+            <span class="drivers-context-pill">Regions: {escape(region_label)}</span>
+            <span class="drivers-context-pill">Updated: {pd.Timestamp.now().strftime('%Y-%m-%d %H:%M')}</span>
         </div>
         """,
         unsafe_allow_html=True
@@ -1297,8 +1310,8 @@ def main():
     with c1:
         st.markdown(
             detail_hint(
-                "Tendência mensal",
-                "Barras representam volume de pedidos; linha representa missing rate mensal."
+                "Monthly trend",
+                "Bars represent order volume; line represents monthly missing rate."
             ),
             unsafe_allow_html=True
         )
@@ -1310,9 +1323,9 @@ def main():
             st.markdown(
                 (
                     "<div class='monitor-summary'>"
-                    "<span class='monitor-summary-label'>Resumo</span>"
-                    f"<span class='monitor-summary-text'>Último mês em <strong>{last['missing_rate']:.2f}%</strong> "
-                    f"({delta_pp:+.2f} pp vs mês anterior).</span>"
+                    "<span class='monitor-summary-label'>Summary</span>"
+                    f"<span class='monitor-summary-text'>Last month at <strong>{last['missing_rate']:.2f}%</strong> "
+                    f"({delta_pp:+.2f} pp vs previous month).</span>"
                     "</div>"
                 ),
                 unsafe_allow_html=True
@@ -1320,13 +1333,13 @@ def main():
     with c2:
         st.markdown(
             detail_hint(
-                "Comparação de cenário",
-                "Compara missing rate atual com cenário hipotético sem motoristas críticos."
+                "Scenario comparison",
+                "Compares current missing rate with a hypothetical scenario without critical drivers."
             ),
             unsafe_allow_html=True
         )
         comparison_df = pd.DataFrame({
-            "scenario": ["Baseline", "Sem críticos"],
+            "scenario": ["Baseline", "Without critical drivers"],
             "missing_rate": [missing_rate, optimized_rate]
         })
         comp_fig = px.bar(
@@ -1340,9 +1353,9 @@ def main():
         )
         comp_fig.update_traces(texttemplate="%{text:.2f}%", textposition="outside")
         comp_fig.update_layout(
-            plot_bgcolor="white",
-            paper_bgcolor="white",
-            font_family="Inter",
+            plot_bgcolor=COLORS['plot_bg'],
+            paper_bgcolor=COLORS['paper_bg'],
+            font_family=COLORS['font_family'],
             yaxis_title="Missing Rate (%)",
             xaxis_title=None,
             showlegend=False
@@ -1351,8 +1364,8 @@ def main():
         st.markdown(
             (
                 "<div class='monitor-summary monitor-summary--success'>"
-                "<span class='monitor-summary-label'>Resumo</span>"
-                f"<span class='monitor-summary-text'>Intervenção em críticos reduz a taxa em "
+                "<span class='monitor-summary-label'>Summary</span>"
+                f"<span class='monitor-summary-text'>Intervention on critical drivers reduces rate by "
                 f"<strong>{(missing_rate - optimized_rate):.2f} pp</strong>.</span>"
                 "</div>"
             ),
@@ -1365,11 +1378,11 @@ def main():
     # Correlation Heatmap
     numeric_cols = driver_snapshot.select_dtypes(include=[np.number]).columns
     corr_df = driver_snapshot[numeric_cols].corr().fillna(0).round(2)
-    st.markdown("#### Correlações Entre Variáveis-Chave")
+    st.markdown("#### Correlations Between Key Variables")
     st.markdown(
         detail_hint(
-            "Matriz de correlação",
-            "Valores próximos de +1 ou -1 indicam relações fortes entre métricas."
+            "Correlation matrix",
+            "Values close to +1 or -1 indicate strong relationships between metrics."
         ),
         unsafe_allow_html=True
     )
@@ -1384,26 +1397,26 @@ def main():
     )
     top_pairs = pairs.reindex(pairs["corr"].abs().sort_values(ascending=False).index).head(3).copy()
     if not top_pairs.empty:
-        top_pairs["forca"] = top_pairs["corr"].apply(correlation_strength)
-        st.markdown("**Top 3 relações para interpretação rápida**")
+        top_pairs["strength"] = top_pairs["corr"].apply(correlation_strength)
+        st.markdown("**Top 3 relationships for quick interpretation**")
 
         strength_class = {
-            "Forte": "chip-strong",
-            "Moderada": "chip-medium",
-            "Fraca": "chip-light",
-            "Muito fraca": "chip-light",
+            "Strong": "chip-strong",
+            "Moderate": "chip-medium",
+            "Weak": "chip-light",
+            "Very weak": "chip-light",
         }
         cards_html = ["<div class='relation-grid'>"]
         for i, (_, r) in enumerate(top_pairs.iterrows(), start=1):
             relation_title = escape(f"{r['var_1']} × {r['var_2']}")
             corr_val = float(r["corr"])
             signal_class = "chip-pos" if corr_val >= 0 else "chip-neg"
-            signal_label = "Positiva" if corr_val >= 0 else "Negativa"
-            strength = str(r["forca"])
+            signal_label = "Positive" if corr_val >= 0 else "Negative"
+            strength = str(r["strength"])
             cards_html.append(
                 (
                     f"<div class='relation-card'>"
-                    f"<div class='relation-rank'>Relação #{i}</div>"
+                    f"<div class='relation-rank'>Relationship #{i}</div>"
                     f"<div class='relation-title'>{relation_title}</div>"
                     f"<div class='relation-meta'>"
                     f"<span class='relation-chip {signal_class}'>{signal_label}: {corr_val:.2f}</span>"
@@ -1420,61 +1433,61 @@ def main():
     # ------------------------------------------------------------------
     # Audience Modules
     # ------------------------------------------------------------------
-    st.markdown("#### Visões por Audiência")
-    tabs = st.tabs(["Executivos", "Gestores Técnicos", "Analistas", "Stakeholders de Negócio"])
+    st.markdown("#### Audience Views")
+    tabs = st.tabs(["Executives", "Technical Managers", "Analysts", "Business Stakeholders"])
 
     # Executives
     with tabs[0]:
-        st.markdown("**KPIs Estratégicos**")
+        st.markdown("**Strategic KPIs**")
         kpi_cols = st.columns(4)
         with kpi_cols[0]:
             render_strategic_kpi(
-                "Exposição",
+                "Exposure",
                 f"${total_missing * ITEM_VALUE_USD:,.0f}",
-                tooltip="Perda financeira estimada a partir dos itens faltantes no período filtrado.",
+                tooltip="Estimated financial loss from missing items in the filtered period.",
             )
         with kpi_cols[1]:
             render_strategic_kpi(
-                "Drivers em Risco",
+                "Drivers at Risk",
                 int(driver_snapshot[driver_snapshot["risk_category"].isin(["High", "Critical"])].shape[0]),
-                tooltip="Quantidade de motoristas classificados como High ou Critical com os filtros atuais.",
+                tooltip="Number of drivers classified as High or Critical under current filters.",
             )
         with kpi_cols[2]:
             render_strategic_kpi(
                 "Missing Rate",
                 f"{missing_rate:.2f}%",
-                tooltip="Percentual de itens faltantes sobre o total de itens entregues no período.",
+                tooltip="Percentage of missing items over total delivered items in the selected period.",
             )
         with kpi_cols[3]:
             render_strategic_kpi(
-                "Impacto Potencial",
+                "Potential Impact",
                 f"${savings_proxy:,.0f}",
-                tooltip="Economia potencial caso a taxa atual converja para o cenário sem drivers críticos.",
+                tooltip="Potential savings if current rate converges to the scenario without critical drivers.",
                 color=COLORS["success"],
             )
 
         st.markdown(
-            "<div class='audience-temporal-title'><strong>Comparativo Temporal</strong></div>",
+            "<div class='audience-temporal-title'><strong>Temporal Comparison</strong></div>",
             unsafe_allow_html=True,
         )
         st.markdown(
-            "<p class='audience-temporal-caption'>Mesmo comparativo temporal do painel principal para leitura executiva.</p>",
+            "<p class='audience-temporal-caption'>Same temporal comparison from the main panel for executive reading.</p>",
             unsafe_allow_html=True,
         )
         st.plotly_chart(trend_fig, use_container_width=True, key="drivers_trend_exec")
 
     # Technical Managers
     with tabs[1]:
-        st.markdown("**Pipeline & Métricas de Modelo**")
+        st.markdown("**Pipeline & Model Metrics**")
         perf = get_default_cache().get_model_performance_metrics()
 
         st.markdown(f"- Algoritmo: `{perf['model_info']['algorithm']}`")
         st.markdown(f"- Features monitoradas: {', '.join(perf['model_info']['features'])}")
-        st.caption("Modelo não supervisionado: performance monitorada via estabilidade de anomalias e drift.")
+        st.caption("Unsupervised model: performance monitored through anomaly stability and drift.")
 
         perf_cols = st.columns(2)
         with perf_cols[0]:
-            st.markdown("**Drift por Feature**")
+            st.markdown("**Drift by Feature**")
             drift_df = pd.DataFrame(perf["drift_analysis"])
             if not drift_df.empty:
                 st.dataframe(drift_df[["feature", "ks_stat", "p_value", "is_drifting"]], use_container_width=True)
@@ -1486,12 +1499,12 @@ def main():
 
     # Analysts
     with tabs[2]:
-        st.markdown("**Drill-down Técnico**")
+        st.markdown("**Technical Drill-down**")
 
         driver_options = driver_snapshot.apply(
             lambda r: f"{r['driver_name']} ({r['driver_id']})", axis=1
         ).tolist()
-        selected_label = st.selectbox("Selecionar motorista", driver_options)
+        selected_label = st.selectbox("Select driver", driver_options)
         selected_id = selected_label.split("(")[-1].replace(")", "")
         driver_row = driver_snapshot[driver_snapshot["driver_id"] == selected_id].iloc[0]
 
@@ -1501,14 +1514,14 @@ def main():
             st.markdown(f"ID: `{driver_row['driver_id']}`")
             risk_badge(str(driver_row["risk_category"]))
 
-            st.markdown("**Métricas-chave**")
+            st.markdown("**Key metrics**")
             st.markdown(f"- Orders: {int(driver_row['total_orders'])}")
             st.markdown(f"- Missing rate: {driver_row['missing_rate']:.2f}%")
             st.markdown(f"- % Orders missing: {driver_row['pct_orders_with_missing']:.2f}%")
             st.markdown(f"- Missing value: ${driver_row['missing_value']:,.0f}")
 
         with d2:
-            st.caption("Tooltip: perfil do motorista versus média da frota (escala normalizada 0-100).")
+            st.caption("Tooltip: driver profile versus fleet average (normalized 0-100 scale).")
             st.plotly_chart(
                 driver_radar_chart(driver_row, driver_snapshot),
                 use_container_width=True,
@@ -1522,24 +1535,24 @@ def main():
                 driver_month,
                 x="month_name",
                 y="missing_rate",
-                title="Missing Rate por Mês",
+                title="Missing Rate by Month",
                 markers=True,
                 color_discrete_sequence=[COLORS["walmart_blue_light"]]
             )
-            fig_driver.update_layout(plot_bgcolor="white", paper_bgcolor="white", font_family="Inter")
-            st.caption("Tooltip: evolução mensal de missing rate para o motorista selecionado.")
+            fig_driver.update_layout(plot_bgcolor=COLORS['plot_bg'], paper_bgcolor=COLORS['paper_bg'], font_family=COLORS['font_family'])
+            st.caption("Tooltip: monthly missing-rate evolution for the selected driver.")
             st.plotly_chart(fig_driver, use_container_width=True, key=f"drivers_monthly_{selected_id}")
 
-        st.markdown("**Distribuição e Outliers**")
+        st.markdown("**Distribution and Outliers**")
         comparison_df, stats_summary = compare_driver_performance(driver_snapshot)
         outliers = comparison_df[comparison_df["is_outlier"]]
         st.markdown(f"Drivers outliers: {len(outliers)}")
-        st.caption("Outliers definidos como missing rate > média + 2 desvios-padrão.")
+        st.caption("Outliers are defined as missing rate > mean + 2 standard deviations.")
         st.dataframe(outliers[["driver_id", "driver_name", "missing_rate", "total_orders"]].head(20), use_container_width=True)
 
     # Business stakeholders
     with tabs[3]:
-        st.markdown("**Comparações e Benchmarks**")
+        st.markdown("**Comparisons and Benchmarks**")
         region_summary = orders_filtered.groupby("region").agg({
             "items_delivered": "sum",
             "items_missing": "sum",
@@ -1557,15 +1570,15 @@ def main():
             region_summary,
             x="region",
             y="missing_rate",
-            title="Missing Rate por Região",
+            title="Missing Rate by Region",
             color="missing_rate",
             color_continuous_scale="Reds"
         )
-        fig_region.update_layout(plot_bgcolor="white", paper_bgcolor="white", font_family="Inter")
-        st.caption("Tooltip: benchmark regional para priorização operacional.")
+        fig_region.update_layout(plot_bgcolor=COLORS['plot_bg'], paper_bgcolor=COLORS['paper_bg'], font_family=COLORS['font_family'])
+        st.caption("Tooltip: regional benchmark for operational prioritization.")
         st.plotly_chart(fig_region, use_container_width=True, key="drivers_region_benchmark")
 
-        st.markdown("**Segmentos de Maior Impacto**")
+        st.markdown("**Highest Impact Segments**")
         segment_exp = driver_snapshot.groupby("experience_level").agg({
             "driver_id": "count",
             "missing_value": "sum",
@@ -1578,9 +1591,9 @@ def main():
         segment_exp = segment_exp.sort_values("missing_share", ascending=False)
         st.dataframe(segment_exp, use_container_width=True)
 
-        st.markdown("**Tradução de Impacto**")
+        st.markdown("**Impact Translation**")
         st.markdown(
-            f"- Reduzir missing rate de {missing_rate:.2f}% para {optimized_rate:.2f}% evita ~${savings_proxy:,.0f} em perdas anuais (proxy)."
+            f"- Reducing missing rate from {missing_rate:.2f}% to {optimized_rate:.2f}% avoids ~${savings_proxy:,.0f} in annual losses (proxy)."
         )
 
     st.markdown("---")
@@ -1588,15 +1601,15 @@ def main():
     # ------------------------------------------------------------------
     # Advanced Analytics (Load on Demand)
     # ------------------------------------------------------------------
-    st.markdown("#### Análises Avançadas (Load-on-Demand)")
-    if st.toggle("Carregar análises avançadas"):
+    st.markdown("#### Advanced Analytics (Load-on-Demand)")
+    if st.toggle("Load advanced analytics"):
         cluster = compute_cluster_analysis(driver_snapshot)
         regression = compute_regression_metrics(driver_snapshot)
 
         c1, c2 = st.columns(2)
         with c1:
             st.markdown("**Clustering & Silhouette**")
-            st.caption("Silhouette mede separação entre clusters (0 a 1).")
+            st.caption("Silhouette measures separation between clusters (0 to 1).")
             if cluster["status"] == "ok":
                 cluster_table = cluster["cluster_stats"].copy()
                 cluster_table["cluster"] = cluster_table["cluster"].apply(lambda c: f"C{int(c)}")
@@ -1605,13 +1618,13 @@ def main():
                         "cluster": "Cluster",
                         "drivers": "Drivers",
                         "missing_rate": "Missing Rate (%)",
-                        "pct_orders_with_missing": "Orders com Missing (%)",
-                        "total_items_missing": "Itens Faltantes",
+                        "pct_orders_with_missing": "Orders with Missing (%)",
+                        "total_items_missing": "Missing Items",
                     }
                 )
                 render_detail_table(
-                    title="Resumo dos Clusters",
-                    subtitle="Segmentação de motoristas por perfil de risco e volume operacional.",
+                    title="Cluster Summary",
+                    subtitle="Driver segmentation by risk profile and operational volume.",
                     dataframe=cluster_table,
                     summary_kpis={
                         "Clusters": cluster["n_clusters"],
@@ -1628,29 +1641,29 @@ def main():
                     title="Feature Importance (Cluster Variance)",
                     color_discrete_sequence=[COLORS["walmart_blue_light"]]
                 )
-                importance_fig.update_layout(plot_bgcolor="white", paper_bgcolor="white", font_family="Inter")
-                st.caption("Tooltip: importância relativa por separação de clusters.")
+                importance_fig.update_layout(plot_bgcolor=COLORS['plot_bg'], paper_bgcolor=COLORS['paper_bg'], font_family=COLORS['font_family'])
+                st.caption("Tooltip: relative importance by cluster separation.")
                 st.plotly_chart(importance_fig, use_container_width=True, key="drivers_cluster_importance")
             else:
-                st.info("Dados insuficientes para clustering.")
+                st.info("Insufficient data for clustering.")
 
         with c2:
-            st.markdown("**Regressão & Validação**")
-            st.caption("R² indica variância explicada; RMSE é erro médio em pontos percentuais.")
+            st.markdown("**Regression & Validation**")
+            st.caption("R² indicates explained variance; RMSE is average error in percentage points.")
             if regression["status"] == "ok":
                 coef_table = regression["coef"].copy()
-                coef_table["direction"] = coef_table["coef"].apply(lambda c: "Positiva" if c >= 0 else "Negativa")
+                coef_table["direction"] = coef_table["coef"].apply(lambda c: "Positive" if c >= 0 else "Negative")
                 coef_table["coef"] = coef_table["coef"].apply(lambda c: f"{c:+.4f}")
                 coef_table = coef_table.rename(
                     columns={
                         "feature": "Feature",
-                        "coef": "Coeficiente",
-                        "direction": "Direção",
+                        "coef": "Coefficient",
+                        "direction": "Direction",
                     }
                 )
                 render_detail_table(
-                    title="Coeficientes da Regressão",
-                    subtitle="Contribuição de cada feature para explicar variação da taxa de missing.",
+                    title="Regression Coefficients",
+                    subtitle="Contribution of each feature to explain missing-rate variation.",
                     dataframe=coef_table,
                     summary_kpis={
                         "R²": f"{regression['r2']:.3f}",
@@ -1659,12 +1672,12 @@ def main():
                     }
                 )
             else:
-                st.info("Dados insuficientes para regressão.")
+                st.info("Insufficient data for regression.")
 
     # ------------------------------------------------------------------
     # Detailed Tables & Export
     # ------------------------------------------------------------------
-    st.markdown("#### Tabelas Detalhadas")
+    st.markdown("#### Detailed Tables")
     detail_df = (
         driver_snapshot[
             [
@@ -1683,29 +1696,29 @@ def main():
             columns={
                 "driver_id": "Driver ID",
                 "driver_name": "Driver",
-                "risk_category": "Risco",
-                "total_orders": "Pedidos",
+                "risk_category": "Risk",
+                "total_orders": "Orders",
                 "missing_rate": "Missing Rate (%)",
-                "pct_orders_with_missing": "Pedidos com Missing (%)",
-                "avg_order_value": "Ticket Médio (USD)",
-                "missing_value": "Perda Estimada (USD)",
+                "pct_orders_with_missing": "Orders with Missing (%)",
+                "avg_order_value": "Average Ticket (USD)",
+                "missing_value": "Estimated Loss (USD)",
             }
         )
     )
     row_cap = min(60, len(detail_df)) if len(detail_df) else 0
     if row_cap > 0:
         render_detail_table(
-            title="Ranking Detalhado de Motoristas",
-            subtitle=f"Exibindo os {row_cap} motoristas com maior missing rate no período filtrado.",
+            title="Detailed Driver Ranking",
+            subtitle=f"Showing the top {row_cap} drivers with highest missing rate in the filtered period.",
             dataframe=detail_df.head(row_cap),
             summary_kpis={
                 "Drivers": len(detail_df),
-                "Média Missing": f"{detail_df['Missing Rate (%)'].mean():.2f}%",
-                "Críticos": int((detail_df["Risco"] == "Critical").sum()),
+                "Average Missing": f"{detail_df['Missing Rate (%)'].mean():.2f}%",
+                "Critical": int((detail_df["Risk"] == "Critical").sum()),
             },
         )
     else:
-        st.info("Sem dados para exibição no ranking detalhado.")
+        st.info("No data available for detailed ranking display.")
 
 if __name__ == "__main__":
     main()

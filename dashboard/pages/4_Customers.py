@@ -6,7 +6,7 @@ from __future__ import annotations
 import sys
 from html import escape
 from pathlib import Path
-from typing import Dict, Tuple
+from typing import Any, Dict, Tuple
 
 import numpy as np
 import pandas as pd
@@ -30,10 +30,10 @@ RISK_COLORS = {
     "Critical": PROJECT_THEME["risk_colors"]["Critical"],
 }
 SIGNATURE_META = {
-    "Always Claiming": ("Immediate validation", COLORS["critical"]),
-    "High-Value Opportunist": ("Value abuse pattern", COLORS["warning"]),
-    "Chronic Reporter": ("Repeat behavior", COLORS["warning"]),
-    "Emerging Risk": ("Monitor closely", COLORS["walmart_blue"]),
+    "Always Claiming": ("Requires strict claim validation", COLORS["critical"]),
+    "High-Value Opportunist": ("High-value abuse signal", COLORS["warning"]),
+    "Chronic Reporter": ("Recurring claims behavior", COLORS["warning"]),
+    "Emerging Risk": ("Watchlist signal", COLORS["walmart_blue"]),
     "Baseline Pattern": ("Normal behavior", COLORS["success"]),
 }
 SLA_BY_RISK = {
@@ -41,6 +41,16 @@ SLA_BY_RISK = {
     "High": "12h",
     "Medium": "48h",
     "Low": "72h",
+}
+CUSTOMERS_SELECTED_CASE_KEY = "customers_selected_case_id"
+COPY = {
+    "scope_title": "Customer Scope / Filters",
+    "scope_context": "These filters impact KPIs, charts, investigation queue, and selected case details.",
+    "queue_title": "Investigation Queue",
+    "queue_context": "Applying Customer Scope filters.",
+    "queue_subtitle": "Prioritize cases by Risk, Priority score, Claim Rate, and SLA. Click a row to open details.",
+    "detail_context": "Details reflect the currently selected queue case.",
+    "detail_empty": "No case selected. Adjust filters or click a case in the queue to inspect details.",
 }
 
 st.set_page_config(
@@ -377,11 +387,21 @@ def _compute_case_priority(customer_df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-@st.cache_data(ttl=600)
+@st.cache_data(ttl=900)  # 15-minute TTL for customer data
 def get_customer_workspace() -> Dict[str, pd.DataFrame]:
+    """
+    Fetch customer workspace using lazy loading.
+    This method uses a 15-minute TTL as customer behavior is stable.
+    """
     cache = get_default_cache()
 
-    customers = cache.get_customer_summary().copy()
+    # Use lazy loading - only loads data needed for customer page
+    page_data = cache.get_page_data('customers')
+
+    # Extract customer data from page data
+    customers = page_data['customer_summary'].copy()
+
+    # Load additional data not in PAGE_CONFIGS
     orders = cache._load_orders_with_features().copy()
     drivers = cache.get_driver_summary().copy()
 
@@ -521,6 +541,74 @@ def build_case_queue(customer_df: pd.DataFrame) -> pd.DataFrame:
     ).reset_index(drop=True)
 
 
+def resolve_selected_case_id(queue_df: pd.DataFrame) -> str:
+    """Resolve the active case id using session state and queue contents."""
+    if queue_df.empty:
+        st.session_state.pop(CUSTOMERS_SELECTED_CASE_KEY, None)
+        return ""
+
+    available_ids = queue_df["customer_id"].astype(str).tolist()
+    selected_case_id = str(st.session_state.get(CUSTOMERS_SELECTED_CASE_KEY, ""))
+    if selected_case_id not in available_ids:
+        selected_case_id = available_ids[0]
+        st.session_state[CUSTOMERS_SELECTED_CASE_KEY] = selected_case_id
+    return selected_case_id
+
+
+def build_queue_display(queue_df: pd.DataFrame, selected_case_id: str, top_n: int = 12) -> pd.DataFrame:
+    """Prepare queue dataframe for interactive grid rendering."""
+    queue_view = queue_df.head(top_n).copy()
+    queue_view["customer_id"] = queue_view["customer_id"].astype(str)
+    queue_view["last_order_date"] = pd.to_datetime(queue_view["last_order_date"], errors="coerce")
+
+    queue_view["Case"] = np.where(
+        queue_view["customer_id"] == selected_case_id,
+        "● Active",
+        "",
+    )
+    queue_view["ID"] = queue_view["customer_id"]
+    queue_view["Customer"] = queue_view["customer_name"].astype(str)
+    queue_view["Risk"] = queue_view["risk_category"].astype(str)
+    queue_view["Priority"] = (
+        queue_view["priority_tier"].astype(str)
+        + " · "
+        + queue_view["priority_score"].map(lambda value: f"{float(value):.1f}")
+    )
+    queue_view["Claim Rate"] = queue_view["claim_rate"].map(lambda value: f"{float(value):.1f}%")
+    queue_view["Claim Orders"] = pd.to_numeric(
+        queue_view["orders_with_claims"], errors="coerce"
+    ).fillna(0).astype(int)
+    queue_view["Last Order"] = queue_view["last_order_date"].dt.strftime("%Y-%m-%d").fillna("-")
+    queue_view["SLA"] = queue_view["risk_category"].map(SLA_BY_RISK).fillna("72h")
+
+    return queue_view[
+        [
+            "Case",
+            "ID",
+            "Customer",
+            "Risk",
+            "Priority",
+            "Claim Rate",
+            "Claim Orders",
+            "Last Order",
+            "SLA",
+        ]
+    ]
+
+
+def _selected_rows_from_event(event: Any) -> list[int]:
+    if isinstance(event, dict):
+        selection = event.get("selection", {})
+        if isinstance(selection, dict):
+            rows = selection.get("rows", [])
+            if isinstance(rows, list):
+                return [int(row) for row in rows]
+    try:
+        return [int(row) for row in event.selection.rows]  # type: ignore[attr-defined]
+    except Exception:
+        return []
+
+
 def build_segment_matrix(customer_df: pd.DataFrame) -> pd.DataFrame:
     matrix = customer_df.pivot_table(
         index="spending_segment",
@@ -606,74 +694,43 @@ def build_driver_links(
     return links.sort_values(["interactions", "pair_missing_rate"], ascending=[False, False])
 
 
-def render_queue_table(queue_df: pd.DataFrame) -> None:
+def render_queue_table(queue_df: pd.DataFrame, selected_case_id: str) -> str:
+    """Render interactive investigation queue and return active case id."""
     if queue_df.empty:
-        st.info("No customer cases match the selected scope.")
-        return
+        st.info("No customer cases match the selected scope. Try reducing filter strictness.")
+        return ""
 
-    rows = []
-    for _, row in queue_df.head(12).iterrows():
-        risk = str(row["risk_category"])
-        risk_css = f"risk-{risk.lower().replace(' ', '-')}"
-        period = "-"
-        if pd.notna(row.get("last_order_date")):
-            period = pd.to_datetime(row["last_order_date"]).strftime("%Y-%m-%d")
-        priority_tier = str(row.get("priority_tier", "Monitor"))
-        priority_css = f"priority-{priority_tier.lower().replace(' ', '-')}"
+    queue_view = build_queue_display(queue_df, selected_case_id=selected_case_id, top_n=12)
+    queue_head = queue_df.head(12).copy().reset_index(drop=True)
+    table_event = st.dataframe(
+        queue_view,
+        use_container_width=True,
+        hide_index=True,
+        on_select="rerun",
+        selection_mode="single-row",
+        key="customers_investigation_queue_table",
+        column_config={
+            "Case": st.column_config.TextColumn("Case"),
+            "ID": st.column_config.TextColumn("ID"),
+            "Customer": st.column_config.TextColumn("Customer"),
+            "Risk": st.column_config.TextColumn("Risk"),
+            "Priority": st.column_config.TextColumn("Priority"),
+            "Claim Rate": st.column_config.TextColumn("Claim Rate"),
+            "Claim Orders": st.column_config.NumberColumn("Claim Orders", format="%d"),
+            "Last Order": st.column_config.TextColumn("Last Order"),
+            "SLA": st.column_config.TextColumn("SLA"),
+        },
+    )
 
-        rows.append(
-            "<tr>"
-            f"<td>{escape(str(row['customer_id']))}</td>"
-            f"<td>{escape(str(row['customer_name']))}</td>"
-            f"<td><span class='customer-risk-pill {risk_css}'>{escape(risk)}</span></td>"
-            f"<td class='num'><span class='customer-priority-chip {priority_css}'>"
-            f"{escape(priority_tier)} · {float(row['priority_score']):.1f}</span></td>"
-            f"<td class='num'>{float(row['claim_rate']):.1f}%</td>"
-            f"<td class='num'>{int(row['orders_with_claims'])}</td>"
-            f"<td class='num'>{escape(period)}</td>"
-            f"<td class='num'>{escape(SLA_BY_RISK.get(risk, '72h'))}</td>"
-            "</tr>"
-        )
+    selected_rows = _selected_rows_from_event(table_event)
+    if selected_rows:
+        selected_row_idx = selected_rows[0]
+        if 0 <= selected_row_idx < len(queue_head):
+            selected_case_id = str(queue_head.iloc[selected_row_idx]["customer_id"])
+            st.session_state[CUSTOMERS_SELECTED_CASE_KEY] = selected_case_id
 
-    table_html = f"""
-    <div class="consistency-wrap customer-queue-card">
-      <div class="consistency-header">
-        <div class="customer-queue-header-main">
-          <div>
-            <p class="customer-queue-title">Customer Investigation Queue</p>
-            <div class="customer-queue-subtitle">
-              Priority + SLA + risk labels support triage without relying on color alone.
-            </div>
-          </div>
-          <div class="customer-queue-legend">
-            <span class="customer-legend-chip critical">Critical · 4h SLA</span>
-            <span class="customer-legend-chip warning">High/Medium · 12-48h SLA</span>
-            <span class="customer-legend-chip stable">Low · 72h SLA</span>
-          </div>
-        </div>
-      </div>
-      <div style="overflow-x:auto;">
-        <table class="customer-queue-table">
-          <thead>
-            <tr>
-              <th>ID</th>
-              <th>Customer</th>
-              <th>Risk</th>
-              <th class="num">Priority</th>
-              <th class="num">Claim Rate</th>
-              <th class="num">Claim Orders</th>
-              <th class="num">Last Order</th>
-              <th class="num">SLA</th>
-            </tr>
-          </thead>
-          <tbody>
-            {"".join(rows)}
-          </tbody>
-        </table>
-      </div>
-    </div>
-    """
-    st.markdown(table_html, unsafe_allow_html=True)
+    st.caption(f"Active case: {selected_case_id}")
+    return selected_case_id
 
 
 def case_action_text(customer_row: pd.Series, links_df: pd.DataFrame) -> Tuple[str, str]:
@@ -705,27 +762,19 @@ def main() -> None:
     render_sidebar()
     load_customers_page_css()
 
-    with st.sidebar:
-        st.markdown("---")
-        st.markdown("### Customer Scope")
-        min_priority = st.slider("Min case priority", min_value=0, max_value=100, value=55, step=5)
-        min_orders = st.slider("Min orders", min_value=1, max_value=20, value=2, step=1)
-        repeat_only = st.checkbox("Only repeat claimers", value=True)
-        st.caption("Applies to queue and all detail modules in this page.")
-
     header_col, refresh_col = st.columns([6, 1])
     with header_col:
         st.markdown("### Operational Intelligence")
         st.markdown(
             """
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.6rem;">
+            <div class="dashboard-header-row">
               <div>
                 <h1 style="margin:0; font-size:2.5rem;">Customer Intelligence Hub</h1>
                 <p class="text-muted" style="margin-top:0.25rem;">
                   Customer-level triage for repeat claims, behavior signatures, and customer-driver links.
                 </p>
               </div>
-              <div style="text-align: right;">
+              <div class="scope-badge-container">
                 <span class="badge badge-success">Customer Scope</span>
               </div>
             </div>
@@ -772,6 +821,7 @@ def main() -> None:
         st.info("No customer data available.")
         return
 
+    st.markdown(f"#### {COPY['scope_title']}")
     filter_col1, filter_col2, filter_col3 = st.columns([2.3, 1.6, 1.2])
     with filter_col1:
         search_term = st.text_input(
@@ -788,19 +838,36 @@ def main() -> None:
         segments = [seg for seg in SEGMENT_ORDER if seg in customers["spending_segment"].unique()]
         selected_segment = st.selectbox("Spending segment", options=["All"] + segments, index=0)
 
+    scope_ops_col1, scope_ops_col2, scope_ops_col3 = st.columns([1.4, 1.2, 1.2])
+    with scope_ops_col1:
+        min_priority = st.slider("Min priority score", min_value=0, max_value=100, value=55, step=5)
+    with scope_ops_col2:
+        min_orders = st.slider("Min total orders", min_value=1, max_value=20, value=2, step=1)
+    with scope_ops_col3:
+        repeat_only = st.checkbox("Only repeat claimers", value=True)
+
+    customer_scope: Dict[str, Any] = {
+        "search_term": search_term,
+        "selected_risks": selected_risks,
+        "selected_segment": selected_segment,
+        "min_priority": min_priority,
+        "min_orders": min_orders,
+        "repeat_only": repeat_only,
+    }
+
     st.markdown(
-        "<div class='customer-section-subtitle'>Scope filters drive KPIs, charts, queue prioritization, and case details.</div>",
+        f"<div class='customer-section-subtitle'>{COPY['scope_context']}</div>",
         unsafe_allow_html=True,
     )
 
     filtered = apply_filters(
         customer_df=customers,
-        search_term=search_term,
-        selected_risks=selected_risks,
-        selected_segment=selected_segment,
-        min_priority=min_priority,
-        min_orders=min_orders,
-        repeat_only=repeat_only,
+        search_term=str(customer_scope["search_term"]),
+        selected_risks=list(customer_scope["selected_risks"]),
+        selected_segment=str(customer_scope["selected_segment"]),
+        min_priority=int(customer_scope["min_priority"]),
+        min_orders=int(customer_scope["min_orders"]),
+        repeat_only=bool(customer_scope["repeat_only"]),
     )
 
     total_filtered = len(filtered)
@@ -812,181 +879,87 @@ def main() -> None:
 
     k1, k2, k3, k4, k5 = st.columns(5)
     with k1:
-        kpi_card("Case Queue", f"{total_filtered}", delta=f"{queue_share:.1f}% of customers", color=COLORS["walmart_blue"])
+        kpi_card(
+            "Case Queue",
+            f"{total_filtered}",
+            delta=f"{queue_share:.1f}% of customers",
+            color=COLORS["walmart_blue"],
+            tooltip=(
+                "Calculation: count(customers) after all page filters and triage thresholds. "
+                "Source: customer_summary + scoped orders from dashboard cache. "
+                "Interpretation: operational investigation workload in current scope."
+            ),
+        )
     with k2:
-        kpi_card("Critical Cases", f"{critical_count}", delta="SLA: 4h", delta_color="inverse", color=COLORS["critical"])
+        kpi_card(
+            "Critical Cases",
+            f"{critical_count}",
+            delta="SLA: 4h",
+            delta_color="inverse",
+            color=COLORS["critical"],
+            tooltip=(
+                "Calculation: count(risk_category == 'Critical') in filtered queue. "
+                "Source: customer risk categorization from customer_summary. "
+                "Interpretation: highest-priority cases requiring immediate triage."
+            ),
+        )
     with k3:
-        kpi_card("Repeat Offenders", f"{repeat_count}", delta="3+ claim orders", delta_color="inverse", color=COLORS["warning"])
+        kpi_card(
+            "Repeat Offenders",
+            f"{repeat_count}",
+            delta="3+ claim orders",
+            delta_color="inverse",
+            color=COLORS["warning"],
+            tooltip=(
+                "Calculation: count(orders_with_claims >= 3) in filtered customers. "
+                "Source: customer_summary aggregated from orders and missing items. "
+                "Interpretation: recurrent claim behavior requiring deeper validation."
+            ),
+        )
     with k4:
-        kpi_card("Avg Claim Rate", f"{avg_claim:.2f}%", delta="Items missing / items ordered", color=COLORS["walmart_blue_light"])
+        kpi_card(
+            "Avg Claim Rate",
+            f"{avg_claim:.2f}%",
+            delta="Items missing / items ordered",
+            color=COLORS["walmart_blue_light"],
+            tooltip=(
+                "Calculation: mean(claim_rate) where claim_rate = items_reported_missing / "
+                "(items_received + items_reported_missing) * 100. "
+                "Source: customer_summary built from order-level facts. "
+                "Interpretation: average severity of customer claims in scope."
+            ),
+        )
     with k5:
-        kpi_card("Estimated Exposure", f"${exposure_usd:,.0f}", delta="$15 per missing item", color=COLORS["critical"])
-
-    st.markdown("---")
-
-    matrix_col, scatter_col = st.columns([1.15, 1.85])
-    with matrix_col:
-        st.markdown("#### Segment x Risk Matrix")
-        st.markdown(
-            "<div class='customer-section-subtitle'>Customer concentration by spending segment and risk tier.</div>",
-            unsafe_allow_html=True,
+        kpi_card(
+            "Estimated Exposure",
+            f"${exposure_usd:,.0f}",
+            delta="$15 per missing item",
+            color=COLORS["critical"],
+            tooltip=(
+                "Calculation: sum(items_reported_missing) * $15 proxy. "
+                "Source: filtered customer_summary claim volume. "
+                "Interpretation: estimated financial exposure linked to current queue."
+            ),
         )
-        matrix = build_segment_matrix(filtered if not filtered.empty else customers)
-        if matrix.empty:
-            st.info("No matrix data for selected filters.")
-        else:
-            fig_matrix = px.imshow(
-                matrix.values,
-                x=matrix.columns.tolist(),
-                y=matrix.index.tolist(),
-                text_auto=True,
-                labels={"x": "Risk Category", "y": "Spending Segment", "color": "Customers"},
-                color_continuous_scale=["#F3F4F6", COLORS["walmart_blue_light"]],
-            )
-            fig_matrix.update_layout(
-                template="walmart_fraud",
-                plot_bgcolor="white",
-                paper_bgcolor="white",
-                font_family="Inter",
-                font_color="#1E293B",
-                margin=dict(t=12, r=8, b=8, l=8),
-                xaxis=dict(
-                    showline=True,
-                    linecolor="#CBD5E1",
-                    tickfont=dict(color="#334155"),
-                ),
-                yaxis=dict(
-                    showline=True,
-                    linecolor="#CBD5E1",
-                    tickfont=dict(color="#334155"),
-                ),
-                coloraxis_colorbar=dict(
-                    tickfont=dict(color="#334155"),
-                    title=dict(text="Customers", font=dict(color="#334155")),
-                ),
-            )
-            fig_matrix.update_traces(
-                hovertemplate=(
-                    "Segment: %{y}<br>"
-                    "Risk: %{x}<br>"
-                    "Customers: %{z}<extra></extra>"
-                )
-            )
-            st.plotly_chart(fig_matrix, use_container_width=True)
-
-    with scatter_col:
-        st.markdown("#### Risk Concentration by Spend")
-        st.markdown(
-            "<div class='customer-section-subtitle'>Bubble size = order volume; guide lines show baseline and high-value threshold.</div>",
-            unsafe_allow_html=True,
-        )
-        if filtered.empty:
-            st.info("No customers in current scope.")
-        else:
-            risk_palette = {k: RISK_COLORS[k] for k in RISK_COLORS if k in filtered["risk_category"].unique()}
-            fig_scatter = px.scatter(
-                filtered,
-                x="avg_order_value",
-                y="claim_rate",
-                size="total_orders",
-                color="risk_category",
-                color_discrete_map=risk_palette,
-                hover_data={
-                    "customer_name": True,
-                    "risk_score": ":.1f",
-                    "priority_score": ":.1f",
-                    "orders_with_claims": True,
-                    "avg_order_value": ":.2f",
-                    "claim_rate": ":.2f",
-                },
-                labels={
-                    "avg_order_value": "Average Order Value ($)",
-                    "claim_rate": "Claim Rate (%)",
-                    "risk_category": "Risk Category",
-                },
-            )
-            portfolio_baseline = float(customers["claim_rate"].mean()) if len(customers) else 0.0
-            value_threshold = float(customers["avg_order_value"].quantile(0.75))
-            fig_scatter.add_hline(
-                y=portfolio_baseline,
-                line_dash="dash",
-                line_color=COLORS["warning"],
-                annotation_text=f"Portfolio baseline {portfolio_baseline:.2f}%",
-            )
-            fig_scatter.add_vline(
-                x=value_threshold,
-                line_dash="dot",
-                line_color=COLORS["walmart_blue"],
-                annotation_text="High-value threshold",
-            )
-            fig_scatter.update_layout(
-                template="walmart_fraud",
-                plot_bgcolor="white",
-                paper_bgcolor="white",
-                font_family="Inter",
-                font_color="#1E293B",
-                margin=dict(t=10, r=8, b=8, l=8),
-                legend=dict(
-                    orientation="h",
-                    yanchor="bottom",
-                    y=1.02,
-                    xanchor="left",
-                    x=0,
-                    title_text="Risk Tier",
-                ),
-                xaxis=dict(
-                    showgrid=True,
-                    gridcolor="#E2E8F0",
-                    showline=True,
-                    linecolor="#CBD5E1",
-                    tickfont=dict(color="#334155"),
-                    title=dict(font=dict(color="#334155")),
-                ),
-                yaxis=dict(
-                    showgrid=True,
-                    gridcolor="#E2E8F0",
-                    showline=True,
-                    linecolor="#CBD5E1",
-                    tickfont=dict(color="#334155"),
-                    title=dict(font=dict(color="#334155")),
-                ),
-                hovermode="closest",
-            )
-            fig_scatter.update_traces(
-                marker=dict(line=dict(width=0.6, color="#E2E8F0")),
-                hovertemplate=(
-                    "Customer: %{customdata[0]}<br>"
-                    "Avg Value: $%{x:.2f}<br>"
-                    "Claim Rate: %{y:.2f}%<br>"
-                    "Risk Score: %{customdata[1]:.1f}<br>"
-                    "Priority: %{customdata[2]:.1f}<extra></extra>"
-                ),
-            )
-            st.plotly_chart(fig_scatter, use_container_width=True)
 
     st.markdown("---")
 
     queue = build_case_queue(filtered)
 
-    st.markdown("#### Investigation Queue")
+    st.markdown(f"#### {COPY['queue_title']}")
+    st.caption(COPY["queue_context"])
     st.markdown(
-        "<div class='customer-section-subtitle'>Executive queue for triage with priority tier, SLA, and latest activity.</div>",
+        f"<div class='customer-section-subtitle'>{COPY['queue_subtitle']}</div>",
         unsafe_allow_html=True,
     )
-    render_queue_table(queue)
 
-    if queue.empty:
-        return
-
-    customer_options = queue["customer_id"].astype(str).tolist()
-    selected_customer_id = st.selectbox(
-        "Open customer case",
-        options=customer_options,
-        format_func=lambda cid: (
-            f"{queue.loc[queue['customer_id'].astype(str) == cid, 'customer_name'].iloc[0]} "
-            f"({queue.loc[queue['customer_id'].astype(str) == cid, 'priority_score'].iloc[0]:.1f})"
-        ),
-    )
+    selected_customer_id = resolve_selected_case_id(queue)
+    selected_customer_id = render_queue_table(queue, selected_case_id=selected_customer_id)
+    selected_row = None
+    if selected_customer_id and not queue.empty:
+        selected_match = queue[queue["customer_id"].astype(str) == selected_customer_id]
+        if not selected_match.empty:
+            selected_row = selected_match.iloc[0]
 
     exploratory_view = queue.copy()
     exploratory_view["SLA"] = exploratory_view["risk_category"].map(SLA_BY_RISK).fillna("72h")
@@ -1017,65 +990,109 @@ def main() -> None:
 
     st.markdown("---")
 
-    selected_row = queue[queue["customer_id"].astype(str) == selected_customer_id].iloc[0]
-    selected_signature = str(selected_row["behavior_signature"])
-    signature_label, signature_color = SIGNATURE_META.get(
-        selected_signature,
-        ("Monitor", COLORS["text_light"]),
-    )
+    st.markdown("#### Case Detail")
+    st.caption(COPY["detail_context"])
 
-    st.markdown(
-        f"""
-        <div class="customer-case-header">
-          <strong style="font-size:1rem; color:#0F172A;">Case Detail</strong>
-          <div style="font-size:0.86rem; color:#475569; margin-top:0.2rem;">
-            Active customer: {escape(str(selected_row['customer_name']))}
-          </div>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
+    if selected_row is None:
+        st.info(COPY["detail_empty"])
+        selected_orders = pd.DataFrame()
+        monthly = pd.DataFrame()
+        links = pd.DataFrame()
+    else:
+        selected_signature = str(selected_row["behavior_signature"])
+        signature_label, signature_color = SIGNATURE_META.get(
+            selected_signature,
+            ("Monitor signal", COLORS["text_light"]),
+        )
 
-    st.markdown(f"#### Case Detail: {selected_row['customer_name']}")
-    st.markdown(
-        "<div class='customer-section-subtitle'>Behavior signature, claim history, and driver-link evidence for the selected case.</div>",
-        unsafe_allow_html=True,
-    )
-    d1, d2, d3 = st.columns([1.1, 1.1, 1.1])
-    with d1:
-        case_risk = str(selected_row["risk_category"])
-        risk_css = f"risk-{case_risk.lower().replace(' ', '-')}"
         st.markdown(
-            f"<span class='customer-risk-pill {risk_css}'>{escape(case_risk)}</span>",
+            f"""
+            <div class="customer-case-header">
+              <strong style="font-size:1rem; color:#0F172A;">
+                Case Detail - {escape(str(selected_row['customer_name']))}
+              </strong>
+              <div style="font-size:0.86rem; color:#475569; margin-top:0.2rem;">
+                Active case from queue
+              </div>
+            </div>
+            """,
             unsafe_allow_html=True,
         )
-        st.caption(f"Risk score: {selected_row['risk_score']:.1f}")
-    with d2:
-        st.markdown(
-            (
-                "<div style='display:inline-block; padding:0.25rem 0.55rem; border-radius:999px;"
-                f"background:{signature_color}20; color:{signature_color}; font-size:0.8rem; font-weight:700;'>"
-                f"{escape(selected_signature)}</div>"
-            ),
-            unsafe_allow_html=True,
-        )
-        st.caption(signature_label)
-    with d3:
-        st.metric("Priority score", f"{selected_row['priority_score']:.1f}", selected_row["priority_tier"])
 
-    stat1, stat2, stat3, stat4 = st.columns(4)
-    with stat1:
-        st.metric("Total orders", int(selected_row["total_orders"]))
-    with stat2:
-        st.metric("Orders with claims", int(selected_row["orders_with_claims"]))
-    with stat3:
-        st.metric("Claim rate", f"{selected_row['claim_rate']:.2f}%")
-    with stat4:
-        st.metric("Total spent", f"${selected_row['total_spent']:,.0f}")
+        st.markdown("##### Status & Risk")
+        risk_col, risk_score_col, priority_col, priority_score_col, behavior_col = st.columns([1, 1, 1, 1, 1.4])
+        with risk_col:
+            st.metric("Risk tier", str(selected_row["risk_category"]))
+        with risk_score_col:
+            st.metric("Risk score", f"{selected_row['risk_score']:.1f}")
+        with priority_col:
+            st.metric("Priority tier", str(selected_row["priority_tier"]))
+        with priority_score_col:
+            st.metric(
+                "Priority score",
+                f"{selected_row['priority_score']:.1f}",
+                help=(
+                    "Calculation: weighted triage score derived from risk score, claim rate, "
+                    "repetition behavior, and spend context for the selected customer."
+                ),
+            )
+        with behavior_col:
+            st.caption("Behavior signal")
+            st.markdown(
+                (
+                    "<div style='display:inline-block; padding:0.25rem 0.55rem; border-radius:999px;"
+                    f"background:{signature_color}20; color:{signature_color}; font-size:0.8rem; font-weight:700;'>"
+                    f"{escape(selected_signature)}</div>"
+                ),
+                unsafe_allow_html=True,
+            )
+            st.caption(signature_label)
 
-    selected_orders = orders[orders["customer_id"] == selected_row["customer_id"]].copy()
-    monthly = build_customer_monthly(selected_orders)
-    links = build_driver_links(selected_orders, drivers, float(selected_row["risk_score"]))
+        st.markdown("##### Case Metrics")
+        stat1, stat2, stat3, stat4 = st.columns(4)
+        with stat1:
+            st.metric(
+                "Total orders",
+                int(selected_row["total_orders"]),
+                help="Source: order history for selected customer. Interpretation: customer activity base size.",
+            )
+        with stat2:
+            st.metric(
+                "Orders with claims",
+                int(selected_row["orders_with_claims"]),
+                help=(
+                    "Calculation: count of orders containing missing items for selected customer. "
+                    "Interpretation: claim recurrence signal."
+                ),
+            )
+        with stat3:
+            st.metric(
+                "Claim rate",
+                f"{selected_row['claim_rate']:.2f}%",
+                help=(
+                    "Calculation: items_reported_missing / (items_received + items_reported_missing) * 100. "
+                    "Interpretation: intensity of claim behavior."
+                ),
+            )
+        with stat4:
+            st.metric(
+                "Total spent",
+                f"${selected_row['total_spent']:,.0f}",
+                help=(
+                    "Source: cumulative order_amount for selected customer. "
+                    "Interpretation: business value and potential financial impact."
+                ),
+            )
+
+        selected_orders = orders[orders["customer_id"] == selected_row["customer_id"]].copy()
+        monthly = build_customer_monthly(selected_orders)
+        links = build_driver_links(selected_orders, drivers, float(selected_row["risk_score"]))
+
+    st.markdown("##### Case Evidence & Actions")
+    st.markdown(
+        "<div class='customer-section-subtitle'>Use these tabs to validate claim trend, inspect driver relationships, and simulate mitigation impact.</div>",
+        unsafe_allow_html=True,
+    )
 
     tab_timeline, tab_links, tab_actions = st.tabs(
         ["Claim Timeline", "Driver Links", "Action Simulator"]
@@ -1121,9 +1138,9 @@ def main() -> None:
 
             fig_timeline.update_layout(
                 template="walmart_fraud",
-                plot_bgcolor="white",
-                paper_bgcolor="white",
-                font_family="Inter",
+                plot_bgcolor=COLORS['plot_bg'],
+                paper_bgcolor=COLORS['paper_bg'],
+                font_family=COLORS['font_family'],
                 font_color="#1E293B",
                 margin=dict(t=24, l=8, r=8, b=8),
                 legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="left", x=0),
@@ -1195,9 +1212,9 @@ def main() -> None:
             )
             fig_links.update_layout(
                 template="walmart_fraud",
-                plot_bgcolor="white",
-                paper_bgcolor="white",
-                font_family="Inter",
+                plot_bgcolor=COLORS['plot_bg'],
+                paper_bgcolor=COLORS['paper_bg'],
+                font_family=COLORS['font_family'],
                 font_color="#1E293B",
                 margin=dict(t=10, l=8, r=8, b=8),
                 legend=dict(
@@ -1265,40 +1282,202 @@ def main() -> None:
             )
 
     with tab_actions:
-        primary_action, secondary_action = case_action_text(selected_row, links)
-        insight_card("Primary action", primary_action, icon="Plan", compact=True)
-        insight_card("Secondary action", secondary_action, icon="Signal", compact=True)
+        if selected_row is None:
+            st.info("Select an active case in Investigation Queue to run action simulation.")
+        else:
+            primary_action, secondary_action = case_action_text(selected_row, links)
+            insight_card("Primary action", primary_action, icon="Plan", compact=True)
+            insight_card("Secondary action", secondary_action, icon="Signal", compact=True)
 
-        st.markdown("##### Impact simulator")
-        coverage = st.slider(
-            "Enhanced verification coverage (%)",
-            min_value=10,
-            max_value=100,
-            value=60,
-            step=5,
-        )
-        detection_lift = st.slider(
-            "Expected claim detection uplift (%)",
-            min_value=10,
-            max_value=90,
-            value=35,
-            step=5,
-        )
+            st.markdown("##### Impact simulator")
+            coverage = st.slider(
+                "Enhanced verification coverage (%)",
+                min_value=10,
+                max_value=100,
+                value=60,
+                step=5,
+            )
+            detection_lift = st.slider(
+                "Expected claim detection uplift (%)",
+                min_value=10,
+                max_value=90,
+                value=35,
+                step=5,
+            )
 
-        prevented_items = (
-            float(selected_row["items_reported_missing"])
-            * (coverage / 100.0)
-            * (detection_lift / 100.0)
-        )
-        prevented_loss = prevented_items * 15.0
+            prevented_items = (
+                float(selected_row["items_reported_missing"])
+                * (coverage / 100.0)
+                * (detection_lift / 100.0)
+            )
+            prevented_loss = prevented_items * 15.0
 
-        sim1, sim2, sim3 = st.columns(3)
-        with sim1:
-            st.metric("Covered claims", f"{coverage}%")
-        with sim2:
-            st.metric("Prevented items", f"{prevented_items:.1f}")
-        with sim3:
-            st.metric("Potential savings", f"${prevented_loss:,.0f}")
+            sim1, sim2, sim3 = st.columns(3)
+            with sim1:
+                st.metric(
+                    "Covered claims",
+                    f"{coverage}%",
+                    help=(
+                        "Input parameter. Represents share of claims that would receive enhanced verification."
+                    ),
+                )
+            with sim2:
+                st.metric(
+                    "Prevented items",
+                    f"{prevented_items:.1f}",
+                    help=(
+                        "Calculation: items_reported_missing * verification_coverage * detection_lift. "
+                        "Interpretation: expected avoided missing-item incidents."
+                    ),
+                )
+            with sim3:
+                st.metric(
+                    "Potential savings",
+                    f"${prevented_loss:,.0f}",
+                    help=(
+                        "Calculation: prevented_items * $15 loss proxy. "
+                        "Interpretation: estimated savings under simulation assumptions."
+                    ),
+                )
+
+    st.markdown("---")
+    st.markdown("#### Exploratory Analysis")
+    st.markdown(
+        "<div class='customer-section-subtitle'>Use these views for broader segment diagnostics after case-level triage.</div>",
+        unsafe_allow_html=True,
+    )
+
+    matrix_col, scatter_col = st.columns([1.15, 1.85])
+    with matrix_col:
+        st.markdown("##### Segment x Risk Matrix")
+        st.markdown(
+            "<div class='customer-section-subtitle'>Customer concentration by spending segment and risk tier.</div>",
+            unsafe_allow_html=True,
+        )
+        matrix = build_segment_matrix(filtered if not filtered.empty else customers)
+        if matrix.empty:
+            st.info("No matrix data for selected filters.")
+        else:
+            fig_matrix = px.imshow(
+                matrix.values,
+                x=matrix.columns.tolist(),
+                y=matrix.index.tolist(),
+                text_auto=True,
+                labels={"x": "Risk Category", "y": "Spending Segment", "color": "Customers"},
+                color_continuous_scale=["#F3F4F6", COLORS["walmart_blue_light"]],
+            )
+            fig_matrix.update_layout(
+                template="walmart_fraud",
+                plot_bgcolor=COLORS['plot_bg'],
+                paper_bgcolor=COLORS['paper_bg'],
+                font_family=COLORS['font_family'],
+                font_color="#1E293B",
+                margin=dict(t=12, r=8, b=8, l=8),
+                xaxis=dict(showline=True, linecolor="#CBD5E1", tickfont=dict(color="#334155")),
+                yaxis=dict(showline=True, linecolor="#CBD5E1", tickfont=dict(color="#334155")),
+                coloraxis_colorbar=dict(
+                    tickfont=dict(color="#334155"),
+                    title=dict(text="Customers", font=dict(color="#334155")),
+                ),
+            )
+            fig_matrix.update_traces(
+                hovertemplate=(
+                    "Segment: %{y}<br>"
+                    "Risk: %{x}<br>"
+                    "Customers: %{z}<extra></extra>"
+                )
+            )
+            st.plotly_chart(fig_matrix, use_container_width=True)
+
+    with scatter_col:
+        st.markdown("##### Risk Concentration by Spend")
+        st.markdown(
+            "<div class='customer-section-subtitle'>Bubble size = order volume; guide lines show baseline and high-value threshold.</div>",
+            unsafe_allow_html=True,
+        )
+        if filtered.empty:
+            st.info("No customers in current scope.")
+        else:
+            risk_palette = {k: RISK_COLORS[k] for k in RISK_COLORS if k in filtered["risk_category"].unique()}
+            fig_scatter = px.scatter(
+                filtered,
+                x="avg_order_value",
+                y="claim_rate",
+                size="total_orders",
+                color="risk_category",
+                color_discrete_map=risk_palette,
+                hover_data={
+                    "customer_name": True,
+                    "risk_score": ":.1f",
+                    "priority_score": ":.1f",
+                    "orders_with_claims": True,
+                    "avg_order_value": ":.2f",
+                    "claim_rate": ":.2f",
+                },
+                labels={
+                    "avg_order_value": "Average Order Value ($)",
+                    "claim_rate": "Claim Rate (%)",
+                    "risk_category": "Risk Category",
+                },
+            )
+            portfolio_baseline = float(customers["claim_rate"].mean()) if len(customers) else 0.0
+            value_threshold = float(customers["avg_order_value"].quantile(0.75))
+            fig_scatter.add_hline(
+                y=portfolio_baseline,
+                line_dash="dash",
+                line_color=COLORS["warning"],
+                annotation_text=f"Portfolio baseline {portfolio_baseline:.2f}%",
+            )
+            fig_scatter.add_vline(
+                x=value_threshold,
+                line_dash="dot",
+                line_color=COLORS["walmart_blue"],
+                annotation_text="High-value threshold",
+            )
+            fig_scatter.update_layout(
+                template="walmart_fraud",
+                plot_bgcolor=COLORS['plot_bg'],
+                paper_bgcolor=COLORS['paper_bg'],
+                font_family=COLORS['font_family'],
+                font_color="#1E293B",
+                margin=dict(t=10, r=8, b=8, l=8),
+                legend=dict(
+                    orientation="h",
+                    yanchor="bottom",
+                    y=1.02,
+                    xanchor="left",
+                    x=0,
+                    title_text="Risk Tier",
+                ),
+                xaxis=dict(
+                    showgrid=True,
+                    gridcolor="#E2E8F0",
+                    showline=True,
+                    linecolor="#CBD5E1",
+                    tickfont=dict(color="#334155"),
+                    title=dict(font=dict(color="#334155")),
+                ),
+                yaxis=dict(
+                    showgrid=True,
+                    gridcolor="#E2E8F0",
+                    showline=True,
+                    linecolor="#CBD5E1",
+                    tickfont=dict(color="#334155"),
+                    title=dict(font=dict(color="#334155")),
+                ),
+                hovermode="closest",
+            )
+            fig_scatter.update_traces(
+                marker=dict(line=dict(width=0.6, color="#E2E8F0")),
+                hovertemplate=(
+                    "Customer: %{customdata[0]}<br>"
+                    "Avg Value: $%{x:.2f}<br>"
+                    "Claim Rate: %{y:.2f}%<br>"
+                    "Risk Score: %{customdata[1]:.1f}<br>"
+                    "Priority: %{customdata[2]:.1f}<extra></extra>"
+                ),
+            )
+            st.plotly_chart(fig_scatter, use_container_width=True)
 
 
 if __name__ == "__main__":

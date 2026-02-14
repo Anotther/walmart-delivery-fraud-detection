@@ -5,6 +5,8 @@ import pandas as pd
 import numpy as np
 from typing import Dict, List, Any, Tuple
 
+from src.config.risk_thresholds import RiskThresholds
+
 
 def analyze_monthly_trends(orders_df: pd.DataFrame) -> pd.DataFrame:
     """
@@ -178,7 +180,7 @@ def analyze_hourly_patterns(orders_df: pd.DataFrame) -> pd.DataFrame:
 
 def detect_temporal_anomalies(
     orders_df: pd.DataFrame,
-    threshold_std: float = 2.0
+    threshold_std: float = None
 ) -> Dict[str, Any]:
     """
     Detect temporal anomalies in the data.
@@ -190,6 +192,9 @@ def detect_temporal_anomalies(
     Returns:
         Dictionary with detected anomalies
     """
+    if threshold_std is None:
+        threshold_std = RiskThresholds.ANOMALY_STD
+
     anomalies = {
         "monthly": [],
         "daily": [],

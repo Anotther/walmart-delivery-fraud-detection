@@ -297,7 +297,11 @@ def create_gauge_chart(
         Plotly Figure object
     """
     if thresholds is None:
-        thresholds = {'low': 30, 'medium': 50, 'high': 70}
+        thresholds = {
+            'low': RiskThresholds.MEDIUM,
+            'medium': RiskThresholds.HIGH,
+            'high': RiskThresholds.CRITICAL
+        }
 
     fig = go.Figure(go.Indicator(
         mode="gauge+number",

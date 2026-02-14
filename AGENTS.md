@@ -38,3 +38,7 @@
 - Store credentials in `.env`; never commit secrets.
 - Dashboard pages must consume data via `src/dashboard/data_cache.py`, not direct CSV reads.
 - `docs/TASK_BACKLOG.md` is the active workflow board; consult and update it when taking tasks.
+## AI Context References
+- Documentation index: `.context/docs/README.md`
+- Agent playbooks: `.context/agents/README.md`
+

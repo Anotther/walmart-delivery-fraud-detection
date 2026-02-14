@@ -7,6 +7,7 @@ import sys
 from pathlib import Path
 import pandas as pd
 import numpy as np
+import plotly.express as px
 
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
@@ -14,7 +15,6 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from src.dashboard.components import (
     load_css,
     kpi_card,
-    plot_bar_chart,
     plot_line_chart,
     COLORS,
     render_sidebar,
@@ -34,14 +34,25 @@ load_css()
 
 @st.cache_data(ttl=900)
 def get_dashboard_data():
-    """Fetch all necessary data for the overview page."""
+    """
+    Fetch all necessary data for the overview page using lazy loading.
+    This method loads only the data required for the Overview page,
+    reducing load time and memory footprint.
+    """
     cache = get_default_cache()
-    metrics = cache.get_overview_metrics()
-    trends = cache.get_temporal_trends()
-    alerts = cache.get_risk_alerts(threshold=70)  # Lower threshold for more visibility
+
+    # Use lazy loading - only loads data needed for this page
+    page_data = cache.get_page_data('overview')
+
+    # Extract required datasets from page data
+    metrics = page_data['overview_metrics']
+    trends = page_data['temporal_trends']
+    # Re-fetch alerts with specific threshold (page_data uses default threshold)
+    alerts = cache.get_risk_alerts(threshold=70)
     regional = cache.get_regional_summary()
-    risk_dist = cache.get_risk_distribution()
-    top_suspicious = cache.get_top_suspicious(n=5)
+    risk_dist = page_data['risk_distribution']
+    top_suspicious = page_data['top_suspicious']
+
     return metrics, trends, alerts, regional, risk_dist, top_suspicious
 
 def calculate_business_impact(metrics):
@@ -90,16 +101,17 @@ def main():
     # ============================================================================
     st.markdown("### Executive Overview")
     st.markdown(f"""
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2rem;">
+    <div class="dashboard-header-row">
         <div>
             <h1 style="margin:0; font-size: 2.5rem;">Network Health Monitor</h1>
             <p class="text-muted">Real-time analysis of delivery anomalies in Central Florida Region.</p>
         </div>
-        <div style="text-align: right;">
+        <div class="scope-badge-container">
              <span class="badge badge-warning">High Alert Level</span>
         </div>
     </div>
     """, unsafe_allow_html=True)
+    st.caption(f"Data Period: {metrics['date_range_start']} to {metrics['date_range_end']}")
 
     # ============================================================================
     # SECTION 1: Executive KPIs - The Critical Numbers
@@ -230,6 +242,10 @@ def main():
     # ============================================================================
     st.markdown("---")
     st.markdown("### Fraud Trends & Patterns")
+    st.caption(
+        "This section explains how missing-rate behavior evolves over time and where trend pressure is increasing or easing. "
+        "Use it to validate whether recent operational actions are reducing risk."
+    )
 
     monthly_df = trends['monthly']
     avg_rate = monthly_df['missing_rate'].mean() if len(monthly_df) > 0 else 0
@@ -295,10 +311,24 @@ def main():
     # ============================================================================
     st.markdown("---")
     st.markdown("### Geographic Intelligence")
+    st.caption(
+        "This section highlights where risk is concentrated across regions. "
+        "Use it to prioritize geographic investigations and local mitigation plans."
+    )
 
     if not regional.empty and len(regional) > 0:
-        regional_sorted = regional.sort_values("missing_rate", ascending=False).head(5)
+        regional_sorted = regional.sort_values("missing_rate", ascending=False).head(5).copy()
         avg_regional_rate = regional['missing_rate'].mean()
+        regional_sorted["risk_level"] = np.where(
+            regional_sorted["missing_rate"] > avg_regional_rate * 1.5,
+            "Critical",
+            np.where(
+                regional_sorted["missing_rate"] > avg_regional_rate * 1.2,
+                "High",
+                np.where(regional_sorted["missing_rate"] > avg_regional_rate, "Medium", "Low"),
+            ),
+        )
+        regional_sorted["rate_label"] = regional_sorted["missing_rate"].map(lambda value: f"{value:.2f}%")
 
         col_geo_left, col_geo_right = st.columns([1, 3])
 
@@ -306,9 +336,7 @@ def main():
             st.markdown("#### Regional Breakdown")
 
             for _, row in regional_sorted.iterrows():
-                risk_level = "Critical" if row['missing_rate'] > avg_regional_rate * 1.5 else \
-                            "High" if row['missing_rate'] > avg_regional_rate * 1.2 else \
-                            "Medium" if row['missing_rate'] > avg_regional_rate else "Low"
+                risk_level = row["risk_level"]
 
                 risk_color = COLORS['critical'] if risk_level == 'Critical' else \
                             COLORS['warning'] if risk_level == 'High' else \
@@ -330,26 +358,41 @@ def main():
                 )
 
         with col_geo_right:
-            plot_bar_chart(
+            fig_regions = px.bar(
                 regional_sorted,
                 x="region",
                 y="missing_rate",
                 title="Top 5 High-Risk Regions - Fraud Concentration Analysis",
-                color="missing_rate",
-                hover_data=["items_missing", "total_orders"]
+                color="risk_level",
+                color_discrete_map={
+                    "Critical": COLORS["critical"],
+                    "High": COLORS["warning"],
+                    "Medium": COLORS["walmart_yellow"],
+                    "Low": COLORS["success"],
+                },
+                category_orders={"risk_level": ["Critical", "High", "Medium", "Low"]},
+                text="rate_label",
+                custom_data=["items_missing", "total_orders", "risk_level"],
             )
-
-    # ============================================================================
-    # FOOTER: Last Updated & Data Refresh
-    # ============================================================================
-    st.markdown("---")
-    col_footer1, col_footer2 = st.columns(2)
-
-    with col_footer1:
-        st.caption(f"**Data Period:** {metrics['date_range_start']} to {metrics['date_range_end']}")
-
-    with col_footer2:
-        st.caption(f"**Last Updated:** {pd.Timestamp.now().strftime('%Y-%m-%d %H:%M:%S')}")
+            fig_regions.update_traces(
+                textposition="outside",
+                cliponaxis=False,
+                hovertemplate=(
+                    "Region: %{x}<br>"
+                    "Missing Rate: %{y:.2f}%<br>"
+                    "Items Missing: %{customdata[0]:,.0f}<br>"
+                    "Orders: %{customdata[1]:,.0f}<br>"
+                    "Risk Level: %{customdata[2]}"
+                    "<extra></extra>"
+                ),
+            )
+            fig_regions.update_layout(
+                xaxis_title=None,
+                yaxis_title="Missing Rate (%)",
+                margin=dict(t=45, l=10, r=10, b=10),
+                legend_title_text="Risk Level",
+            )
+            st.plotly_chart(fig_regions, use_container_width=True)
 
 if __name__ == "__main__":
     main()

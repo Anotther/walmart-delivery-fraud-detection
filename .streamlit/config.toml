@@ -6,8 +6,5 @@ secondaryBackgroundColor = "#FFFFFF"
 textColor = "#111827"
 font = "sans serif"
 
-[server]
-port = 8502
-
 [client]
 showSidebarNavigation = false

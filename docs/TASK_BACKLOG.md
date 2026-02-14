@@ -33,8 +33,12 @@ Este documento serve como a fonte única da verdade para a sincronização entre
 - [ ] `[GERAL]` Definição de testes automatizados para o dashboard.
 
 ## ✅ Concluído
+- [x] `[FRONTEND]` Auditoria da barra superior do dashboard + implementação de acesso rápido de tema na sidebar com persistência (`src/dashboard/theme.py`, `src/dashboard/components.py`, `docs/TOPBAR_AUDIT_THEME_QUICK_ACCESS_REPORT.md`).
 - [x] `[GERAL]` Análise inicial da arquitetura (`dashboard/ANATOMY.md`).
 - [x] `[BACKEND]` Implementação inicial do cache de dados (`src/dashboard/data_cache.py`).
 - [x] `[DATA]` Geração dos notebooks de análise e preparação de dados.
+- [x] `[FRONTEND]` Padronização global claro/escuro com seletor Auto/Claro/Escuro, tokens centralizados e auditoria de hardcodes (`src/dashboard/theme.py`, `src/dashboard/components.py`, `dashboard/styles/main.css`, `scripts/audit_dashboard_theme.py`).
 - [x] `[FRONTEND]` Refatoração da Página de Análise de Clientes com Customer Case Workbench (`dashboard/pages/4_Customers.py`).
 - [x] `[FRONTEND]` Padronização visual da página Customers com baseline Geographic (`dashboard/pages/4_Customers.py`).
+- [x] `[FRONTEND]` Tooltips adicionados aos cards KPI da Methodology (`dashboard/pages/7_Methodology.py`).
+- [x] `[FRONTEND]` Melhoria de espaçamento e tooltips nos cards da seção How Fraud Behaves em Patterns (`dashboard/pages/8_Patterns.py`).

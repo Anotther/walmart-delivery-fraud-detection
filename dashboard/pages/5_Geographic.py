@@ -67,10 +67,21 @@ RISK_LABELS = {
 }
 
 
-@st.cache_data(ttl=900)
+@st.cache_data(ttl=600)  # 10-minute TTL for geographic data
 def get_geo_data() -> pd.DataFrame:
+    """
+    Fetch geographic data using lazy loading.
+    This method uses a 10-minute TTL as regional analysis updates periodically.
+    """
     cache = get_default_cache()
-    return cache.get_regional_summary()
+
+    # Use lazy loading - only loads data needed for geographic page
+    page_data = cache.get_page_data('geographic')
+
+    # Extract regional data from page data
+    regional = page_data['regional_summary']
+
+    return regional
 
 
 def _query_param_value(name: str) -> str:
@@ -417,7 +428,7 @@ def build_bubble_map(geo_df: pd.DataFrame) -> go.Figure:
     fig.update_traces(marker=dict(opacity=0.85))
     fig.update_layout(
         template="walmart_fraud",
-        font_family="Inter",
+        font_family=COLORS['font_family'],
         margin=dict(t=12, r=12, b=8, l=8),
         legend=dict(
             orientation="h",
@@ -457,7 +468,7 @@ def build_missing_rate_chart(geo_df: pd.DataFrame, avg_missing_rate: float) -> g
     )
     fig.update_layout(
         template="walmart_fraud",
-        font_family="Inter",
+        font_family=COLORS['font_family'],
         margin=dict(t=12, r=16, b=8, l=8),
         yaxis_title=None,
         xaxis_title="Missing Rate (%)",
@@ -508,7 +519,7 @@ def build_risk_volume_scatter(geo_df: pd.DataFrame, avg_missing_rate: float) -> 
     )
     fig.update_layout(
         template="walmart_fraud",
-        font_family="Inter",
+        font_family=COLORS['font_family'],
         margin=dict(t=12, r=12, b=8, l=8),
         legend_title_text="Risk Tier",
     )
@@ -534,7 +545,7 @@ def build_revenue_share_chart(geo_df: pd.DataFrame) -> go.Figure:
     )
     fig.update_layout(
         template="walmart_fraud",
-        font_family="Inter",
+        font_family=COLORS['font_family'],
         margin=dict(t=12, r=16, b=8, l=8),
         yaxis_title=None,
         xaxis_title="Revenue Share (%)",
@@ -743,12 +754,12 @@ def main() -> None:
     st.markdown("### Operational Intelligence")
     st.markdown(
         """
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.6rem;">
+        <div class="dashboard-header-row">
             <div>
                 <h1 style="margin:0; font-size: 2.5rem;">Geographic Intelligence Hub</h1>
                 <p class="text-muted">Regional hotspots, geospatial exposure, and execution priorities for Central Florida.</p>
             </div>
-            <div style="text-align: right;">
+            <div class="scope-badge-container">
                  <span class="badge badge-success">Regional Scope</span>
             </div>
         </div>
@@ -919,9 +930,6 @@ def main() -> None:
             mime="text/csv",
             use_container_width=True,
         )
-
-    st.caption(f"Last Updated: {pd.Timestamp.now().strftime('%Y-%m-%d %H:%M:%S')}")
-
 
 if __name__ == "__main__":
     main()

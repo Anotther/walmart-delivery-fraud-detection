@@ -12,6 +12,7 @@ from typing import Any, Dict, List, Tuple
 import numpy as np
 import pandas as pd
 import plotly.express as px
+import plotly.graph_objects as go
 import streamlit as st
 
 # Add src to path
@@ -59,7 +60,52 @@ MARGIN_BY_CATEGORY = {
     "Snacks": 0.29,
     "Supermarket": 0.20,
 }
-BUSINESS_OWNER = "Fraud Ops Team"
+KPI_TOOLTIPS = {
+    "loss_pct_revenue": (
+        "Percentual da perda estimada sobre receita total do escopo filtrado. "
+        "Calculado como: (Total Estimated Loss / Total Revenue) x 100"
+    ),
+    "margin_at_risk": (
+        "Exposicao de margem baseada em loss estimado e margem media por categoria. "
+        "Representa o impacto direto no lucro bruto"
+    ),
+    "opportunity_cost": (
+        "Custo de oportunidade estimado usando multiplicador 1.25x sobre loss total. "
+        "Considera impacto indireto em vendas perdidas"
+    ),
+    "forecast_306090": (
+        "Projecao de perda para 30, 60 e 90 dias baseada em tendencia historica e sazonalidade"
+    ),
+}
+
+CHART_TOOLTIPS = {
+    "margin_loss_sku": (
+        "Scatter mostrando relacao entre margem de lucro (%) e perda estimada ($) por SKU. "
+        "Identifica produtos com maior impacto financeiro"
+    ),
+    "replacement_prevention_roi": (
+        "Comparacao entre custo de reposicao de produtos perdidos vs investimento em prevencao por categoria. "
+        "Linha tracejada mostra custo medio de prevencao"
+    ),
+    "forecast": (
+        "Projecao linear de perda para proximos 30, 60 e 90 dias com valores especificos exibidos"
+    ),
+}
+
+OPERATIONAL_KPI_TOOLTIPS = {
+    "total_units_missing": (
+        "Total de eventos de itens faltantes dentro do escopo filtrado de categoria e periodo."
+    ),
+    "total_estimated_loss": (
+        "Soma do valor estimado perdido (price) para os eventos de missing item no escopo filtrado."
+    ),
+    "high_risk_skus": (
+        "Quantidade de SKUs com score de risco acima do limite definido no filtro de risco composto."
+    ),
+    "loss_trend_baseline": (
+        "Perda media recente comparada ao baseline historico. Delta indica variacao percentual versus periodo base."
+    ),
+}
 
 
 def load_product_page_css() -> None:
@@ -395,6 +441,38 @@ def _divide_series(numerator: pd.Series, denominator: pd.Series) -> pd.Series:
     return pd.Series(np.where(den > 0, num / den, 0.0), index=num.index)
 
 
+def _percentile_rank(series: pd.Series, fallback: float = 50.0) -> pd.Series:
+    values = pd.to_numeric(series, errors="coerce")
+    valid = values.dropna()
+    if valid.nunique() <= 1:
+        return pd.Series(np.full(len(values), fallback, dtype=float), index=values.index)
+    return values.rank(method="average", pct=True).fillna(fallback / 100.0) * 100.0
+
+
+def _safe_correlation(
+    x: pd.Series,
+    y: pd.Series,
+    min_points: int = 8,
+) -> Dict[str, Any]:
+    pair = pd.DataFrame(
+        {
+            "x": pd.to_numeric(x, errors="coerce"),
+            "y": pd.to_numeric(y, errors="coerce"),
+        }
+    ).dropna()
+
+    sample_size = int(len(pair))
+    if sample_size < min_points:
+        return {"value": np.nan, "sample_size": sample_size, "status": "insufficient_sample"}
+    if pair["x"].nunique() < 2 or pair["y"].nunique() < 2:
+        return {"value": np.nan, "sample_size": sample_size, "status": "insufficient_variance"}
+    return {"value": float(pair["x"].corr(pair["y"])), "sample_size": sample_size, "status": "ok"}
+
+
+def _format_corr_value(value: float) -> str:
+    return "N/A" if pd.isna(value) else f"{value:.2f}"
+
+
 def build_category_color_map(categories: List[str]) -> Dict[str, str]:
     """Create consistent category color map using project tokens."""
     palette = PROJECT_THEME.get("categorical", [COLORS["walmart_blue"]])
@@ -586,20 +664,89 @@ def build_monthly_category_loss(facts_df: pd.DataFrame) -> pd.DataFrame:
     return monthly
 
 
+def build_scoped_revenue(facts_df: pd.DataFrame) -> float:
+    """Compute scoped revenue from filtered facts using unique orders."""
+    if facts_df.empty or "order_amount" not in facts_df.columns or "order_id" not in facts_df.columns:
+        return 0.0
+
+    revenue_base = facts_df[["order_id", "order_amount"]].copy()
+    revenue_base["order_amount"] = pd.to_numeric(revenue_base["order_amount"], errors="coerce").fillna(0.0)
+    revenue_base["order_id"] = revenue_base["order_id"].astype(str)
+    return float(revenue_base.drop_duplicates(subset=["order_id"])["order_amount"].sum())
+
+
+def build_margin_loss_plot_frame(products_scope: pd.DataFrame) -> pd.DataFrame:
+    """Prepare clean and robust frame for Margin x Loss scatter."""
+    expected_cols = [
+        "product_id",
+        "product_name",
+        "category",
+        "estimated_loss",
+        "times_reported_missing",
+        "risk_score",
+        "margin_pct",
+        "bubble_size",
+    ]
+    if products_scope.empty:
+        return pd.DataFrame(columns=expected_cols)
+
+    frame = products_scope.copy()
+    frame["estimated_loss"] = pd.to_numeric(frame.get("estimated_loss"), errors="coerce").fillna(0.0)
+    frame = frame[frame["estimated_loss"] > 0].copy()
+    if frame.empty:
+        return pd.DataFrame(columns=expected_cols)
+
+    frame["times_reported_missing"] = pd.to_numeric(
+        frame.get("times_reported_missing"), errors="coerce"
+    ).fillna(0.0)
+    frame["risk_score"] = pd.to_numeric(frame.get("risk_score"), errors="coerce").fillna(0.0)
+    frame["margin_rate"] = pd.to_numeric(frame.get("margin_rate"), errors="coerce").fillna(0.0)
+    frame["margin_pct"] = frame["margin_rate"] * 100.0
+
+    frame["product_id"] = frame.get("product_id", pd.Series("", index=frame.index)).astype(str)
+    frame["product_name"] = frame.get("product_name", pd.Series("", index=frame.index)).astype(str)
+    frame["category"] = frame.get("category", pd.Series("Unknown", index=frame.index)).fillna("Unknown").astype(str)
+
+    missing_min = float(frame["times_reported_missing"].min()) if not frame.empty else 0.0
+    missing_max = float(frame["times_reported_missing"].max()) if not frame.empty else 0.0
+    if missing_max > missing_min:
+        frame["bubble_size"] = 10 + (
+            (frame["times_reported_missing"] - missing_min) / (missing_max - missing_min)
+        ) * 24
+    else:
+        frame["bubble_size"] = 16.0
+
+    return frame[expected_cols].copy()
+
+
 def build_loss_forecast(facts_df: pd.DataFrame) -> pd.DataFrame:
     """Build simple 30/60/90 days projected loss forecast using linear trend."""
     horizons = [30, 60, 90]
     if facts_df.empty:
-        return pd.DataFrame({"horizon_days": horizons, "projected_loss": [0.0, 0.0, 0.0]})
-
-    daily = facts_df.groupby("order_date")["price"].sum().sort_index()
-    daily = daily.asfreq("D", fill_value=0.0)
-    if len(daily) < 7:
-        baseline = float(daily.mean()) if len(daily) else 0.0
         return pd.DataFrame(
             {
                 "horizon_days": horizons,
-                "projected_loss": [baseline * horizon for horizon in horizons],
+                "projected_loss": [0.0, 0.0, 0.0],
+                "projected_loss_low": [0.0, 0.0, 0.0],
+                "projected_loss_high": [0.0, 0.0, 0.0],
+            }
+        )
+
+    daily = facts_df.groupby("order_date")["price"].sum().sort_index()
+    daily = daily.asfreq("D", fill_value=0.0)
+    daily_std = float(daily.std(ddof=0)) if len(daily) > 1 else 0.0
+
+    if len(daily) < 7:
+        baseline = float(daily.mean()) if len(daily) else 0.0
+        projections = [baseline * horizon for horizon in horizons]
+        lower = [max(value - daily_std * np.sqrt(horizon), 0.0) for value, horizon in zip(projections, horizons)]
+        upper = [value + daily_std * np.sqrt(horizon) for value, horizon in zip(projections, horizons)]
+        return pd.DataFrame(
+            {
+                "horizon_days": horizons,
+                "projected_loss": projections,
+                "projected_loss_low": lower,
+                "projected_loss_high": upper,
             }
         )
 
@@ -617,7 +764,16 @@ def build_loss_forecast(facts_df: pd.DataFrame) -> pd.DataFrame:
             pred = np.clip(pred, a_min=0.0, a_max=None)
             projections.append(float(pred.sum()))
 
-    return pd.DataFrame({"horizon_days": horizons, "projected_loss": projections})
+    lower = [max(value - daily_std * np.sqrt(horizon), 0.0) for value, horizon in zip(projections, horizons)]
+    upper = [value + daily_std * np.sqrt(horizon) for value, horizon in zip(projections, horizons)]
+    return pd.DataFrame(
+        {
+            "horizon_days": horizons,
+            "projected_loss": projections,
+            "projected_loss_low": lower,
+            "projected_loss_high": upper,
+        }
+    )
 
 
 def build_behavior_shift_table(facts_df: pd.DataFrame) -> pd.DataFrame:
@@ -901,6 +1057,7 @@ def build_recommendations(
 
 def prepare_product_workspace(workspace: Dict[str, Any]) -> Dict[str, Any]:
     """Prepare full-page datasets from cache workspace."""
+    orders = workspace.get("orders", pd.DataFrame()).copy()
     products = workspace["products"].copy()
     missing_items = workspace["missing_items"].copy()
     facts = workspace["missing_facts"].copy()
@@ -908,10 +1065,44 @@ def prepare_product_workspace(workspace: Dict[str, Any]) -> Dict[str, Any]:
     drivers = workspace["driver_summary"].copy()
 
     products["price"] = pd.to_numeric(products["price"], errors="coerce").fillna(0.0)
+    orders["order_date"] = pd.to_datetime(orders.get("order_date"), errors="coerce")
+    orders["items_missing"] = pd.to_numeric(orders.get("items_missing"), errors="coerce").fillna(0.0)
+    orders["items_delivered"] = pd.to_numeric(orders.get("items_delivered"), errors="coerce").fillna(0.0)
+    orders["delivery_hour"] = pd.to_numeric(orders.get("delivery_hour"), errors="coerce").fillna(0).astype(int)
+    if "day_of_week" in orders.columns:
+        orders["day_of_week"] = orders["day_of_week"].fillna(orders["order_date"].dt.day_name())
+    else:
+        orders["day_of_week"] = orders["order_date"].dt.day_name()
+    orders["region"] = orders.get("region", pd.Series(index=orders.index, dtype="object")).fillna("Unknown").astype(str)
+    order_driver = (
+        orders["driver_id"]
+        if "driver_id" in orders.columns
+        else pd.Series("", index=orders.index, dtype="object")
+    )
+    order_customer = (
+        orders["customer_id"]
+        if "customer_id" in orders.columns
+        else pd.Series("", index=orders.index, dtype="object")
+    )
+    orders["pair_key"] = order_driver.astype(str) + "_" + order_customer.astype(str)
+    orders["total_items"] = orders["items_delivered"] + orders["items_missing"]
+    orders["order_missing_rate"] = np.where(
+        orders["total_items"] > 0,
+        orders["items_missing"] / orders["total_items"] * 100,
+        0.0,
+    )
+
     facts["order_date"] = pd.to_datetime(facts["order_date"], errors="coerce")
     facts["price"] = pd.to_numeric(facts.get("price"), errors="coerce").fillna(0.0)
-    facts["day_of_week"] = facts["order_date"].dt.day_name().fillna(facts.get("day_of_week"))
-    facts["delivery_hour"] = pd.to_numeric(facts.get("delivery_hour"), errors="coerce")
+    if "day_of_week" in facts.columns:
+        facts["day_of_week"] = facts["day_of_week"].fillna(facts["order_date"].dt.day_name())
+    else:
+        facts["day_of_week"] = facts["order_date"].dt.day_name()
+    facts["day_of_week"] = facts["day_of_week"].fillna("Unknown").astype(str)
+    facts["delivery_hour"] = pd.to_numeric(facts.get("delivery_hour"), errors="coerce").fillna(-1).astype(int)
+    facts["items_missing"] = pd.to_numeric(facts.get("items_missing"), errors="coerce").fillna(0.0)
+    facts["items_delivered"] = pd.to_numeric(facts.get("items_delivered"), errors="coerce").fillna(0.0)
+    facts["region"] = facts.get("region", pd.Series(index=facts.index, dtype="object")).fillna("Unknown").astype(str)
 
     customer_cols = [
         col
@@ -973,20 +1164,125 @@ def prepare_product_workspace(workspace: Dict[str, Any]) -> Dict[str, Any]:
         and indicator.details.get("customer_id") is not None
     }
 
+    day_rate_map: Dict[str, float] = {}
+    hour_rate_map: Dict[int, float] = {}
+    region_rate_map: Dict[str, float] = {}
+    pair_rate_map: Dict[str, float] = {}
+    pair_stats = pd.DataFrame(columns=["pair_key", "interactions", "pair_missing_rate"])
+    global_missing_rate = 0.0
+
+    if not orders.empty:
+        global_missing_rate = float(pd.to_numeric(orders["order_missing_rate"], errors="coerce").fillna(0.0).mean())
+
+        day_rates = (
+            orders.groupby("day_of_week", observed=False)["order_missing_rate"]
+            .mean()
+            .dropna()
+        )
+        day_rate_map = {str(k): float(v) for k, v in day_rates.items()}
+
+        hour_rates = (
+            orders.groupby("delivery_hour", observed=False)["order_missing_rate"]
+            .mean()
+            .dropna()
+        )
+        hour_rate_map = {int(k): float(v) for k, v in hour_rates.items()}
+
+        region_rates = (
+            orders.groupby("region", observed=False)["order_missing_rate"]
+            .mean()
+            .dropna()
+        )
+        region_rate_map = {str(k): float(v) for k, v in region_rates.items()}
+
+        pair_stats = (
+            orders.groupby("pair_key", observed=False)
+            .agg(
+                interactions=("order_id", "count"),
+                pair_missing_rate=("order_missing_rate", "mean"),
+            )
+            .reset_index()
+        )
+        if not pair_stats.empty:
+            pair_stats["pair_missing_rate"] = pd.to_numeric(
+                pair_stats["pair_missing_rate"], errors="coerce"
+            ).fillna(0.0)
+            pair_rate_map = {
+                str(k): float(v)
+                for k, v in pair_stats.set_index("pair_key")["pair_missing_rate"].items()
+            }
+
+    if not anomaly_days and day_rate_map:
+        day_series = pd.Series(day_rate_map, dtype=float)
+        day_cutoff = float(day_series.quantile(0.80))
+        anomaly_days = set(day_series[day_series >= day_cutoff].index.astype(str).tolist())
+
+    if not anomaly_hours and hour_rate_map:
+        hour_series = pd.Series(hour_rate_map, dtype=float)
+        hour_cutoff = float(hour_series.quantile(0.85))
+        anomaly_hours = {
+            int(idx)
+            for idx in hour_series[hour_series >= hour_cutoff].index.tolist()
+        }
+
+    if not high_risk_regions and region_rate_map:
+        region_series = pd.Series(region_rate_map, dtype=float)
+        region_cutoff = float(region_series.quantile(0.85))
+        high_risk_regions = set(
+            region_series[region_series >= region_cutoff].index.astype(str).tolist()
+        )
+
+    if not collusion_pairs and not pair_stats.empty:
+        pair_cutoff = float(pair_stats["pair_missing_rate"].quantile(0.95))
+        fallback_collusion = pair_stats[
+            (pair_stats["interactions"] >= 2)
+            & (pair_stats["pair_missing_rate"] >= pair_cutoff)
+            & (pair_stats["pair_missing_rate"] > 0)
+        ]
+        collusion_pairs = set(fallback_collusion["pair_key"].astype(str).tolist())
+
     facts["pair_key"] = facts["driver_id"].astype(str) + "_" + facts["customer_id"].astype(str)
     facts["is_anomaly_day"] = facts["day_of_week"].isin(anomaly_days)
-    facts["is_anomaly_hour"] = (
-        pd.to_numeric(facts["delivery_hour"], errors="coerce").fillna(-1).astype(int).isin(anomaly_hours)
-    )
+    facts["is_anomaly_hour"] = facts["delivery_hour"].isin(anomaly_hours)
     facts["is_high_risk_region"] = facts["region"].isin(high_risk_regions)
     facts["is_collusion_pair"] = facts["pair_key"].isin(collusion_pairs)
 
-    facts["pattern_exposure_points"] = (
-        facts["is_anomaly_day"].astype(int) * 30
-        + facts["is_anomaly_hour"].astype(int) * 25
-        + facts["is_high_risk_region"].astype(int) * 25
-        + facts["is_collusion_pair"].astype(int) * 20
+    facts["day_missing_rate"] = pd.to_numeric(
+        facts["day_of_week"].map(day_rate_map), errors="coerce"
     )
+    facts["hour_missing_rate"] = pd.to_numeric(
+        facts["delivery_hour"].map(hour_rate_map), errors="coerce"
+    )
+    facts["region_missing_rate"] = pd.to_numeric(
+        facts["region"].map(region_rate_map), errors="coerce"
+    )
+    facts["pair_missing_rate"] = pd.to_numeric(
+        facts["pair_key"].map(pair_rate_map), errors="coerce"
+    )
+
+    for col in [
+        "day_missing_rate",
+        "hour_missing_rate",
+        "region_missing_rate",
+        "pair_missing_rate",
+    ]:
+        facts[col] = pd.to_numeric(facts[col], errors="coerce").fillna(global_missing_rate)
+
+    facts["day_signal"] = _percentile_rank(facts["day_missing_rate"])
+    facts["hour_signal"] = _percentile_rank(facts["hour_missing_rate"])
+    facts["region_signal"] = _percentile_rank(facts["region_missing_rate"])
+    facts["pair_signal"] = _percentile_rank(facts["pair_missing_rate"])
+
+    facts["pattern_exposure_points"] = (
+        facts["day_signal"] * 0.30
+        + facts["hour_signal"] * 0.20
+        + facts["region_signal"] * 0.25
+        + facts["pair_signal"] * 0.25
+        + facts["is_anomaly_day"].astype(int) * 8
+        + facts["is_anomaly_hour"].astype(int) * 7
+        + facts["is_high_risk_region"].astype(int) * 7
+        + facts["is_collusion_pair"].astype(int) * 10
+    ).clip(0, 100)
 
     products_scope_full = build_product_scope(products, facts)
     category_scope_full = build_category_scope(products_scope_full, facts)
@@ -1006,15 +1302,6 @@ def prepare_product_workspace(workspace: Dict[str, Any]) -> Dict[str, Any]:
         "behavior_shift_full": behavior_shift_full,
         "consistency_df": consistency_df,
     }
-
-
-def navigate_with_filters(target_page: str, params: Dict[str, str]) -> None:
-    """Navigate to another page keeping scoped filters as query params."""
-    st.query_params.clear()
-    for key, value in params.items():
-        if value:
-            st.query_params[key] = value
-    st.switch_page(target_page)
 
 
 def build_sku_triage_queue(
@@ -1275,54 +1562,66 @@ def build_sku_exploratory_view(queue_df: pd.DataFrame) -> pd.DataFrame:
     )
 
 
+@st.cache_data(ttl=480)  # 8-minute TTL for product analysis
+def get_product_data():
+    """
+    Fetch product analysis workspace using lazy loading.
+    This method uses an 8-minute TTL as product updates occur moderately frequently.
+    """
+    cache = get_default_cache()
+
+    # Use lazy loading - only loads data needed for product analysis page
+    page_data = cache.get_page_data('product_analysis')
+
+    # Extract product workspace from page data with explicit fallback diagnostics
+    workspace = page_data.get('product_analysis_workspace')
+    if workspace is None:
+        error_detail = page_data.get('get_product_analysis_workspace_error')
+        if error_detail:
+            raise RuntimeError(
+                f"Failed to load product analysis workspace: {error_detail}"
+            )
+        workspace = cache.get_product_analysis_workspace()
+
+    return workspace
+
+
 def main() -> None:
     render_sidebar()
     load_product_page_css()
-
     cache = get_default_cache()
 
     with st.spinner("Loading product intelligence workspace..."):
-        workspace = cache.get_product_analysis_workspace()
+        workspace = get_product_data()
         prepared = prepare_product_workspace(workspace)
 
-    generated_at = pd.to_datetime(workspace.get("generated_at"), errors="coerce")
-    generated_label = (
-        generated_at.strftime("%Y-%m-%d %H:%M") if pd.notna(generated_at) else pd.Timestamp.now().strftime("%Y-%m-%d %H:%M")
-    )
-
     prefill_category = _query_param_value("product_category")
-    prefill_product = _query_param_value("product_id")
 
     header_col, refresh_col = st.columns([6, 1])
     with header_col:
         st.markdown("### Operational Intelligence")
         st.markdown(
-            f"""
-            <div class="product-header">
-              <div class="product-header-main">
+            """
+            <div class="dashboard-header-row">
                 <div>
-                  <h1 class="product-header-title">Product Analysis Control Tower</h1>
-                  <div class="product-header-subtitle">
-                    Product-level loss intelligence with data quality controls, cross-page consistency,
-                    and SKU prioritization for fraud-loss mitigation.
-                  </div>
+                    <h1 style="margin:0; font-size: 2.5rem;">Product Analysis Control Tower</h1>
+                    <p class="text-muted">Product-level loss intelligence with data quality controls, cross-page consistency, and SKU prioritization for fraud-loss mitigation.</p>
                 </div>
-                <div class="product-header-meta">
-                  <span class="product-pill success">System Status: Online</span>
-                  <span class="product-pill">Last Updated: {generated_label}</span>
-                  <span class="product-pill warning">Owner: {BUSINESS_OWNER}</span>
+                <div class="scope-badge-container">
+                     <span class="badge badge-success">Product Scope</span>
                 </div>
-              </div>
             </div>
             """,
             unsafe_allow_html=True,
         )
     with refresh_col:
-        st.markdown("<div style='height:1.6rem;'></div>", unsafe_allow_html=True)
+        st.markdown("<div style='height:1.5rem;'></div>", unsafe_allow_html=True)
         if st.button("Refresh Data", use_container_width=True):
             cache.refresh_all()
             st.cache_data.clear()
             st.rerun()
+
+    st.markdown("---")
 
     facts = prepared["facts"]
     products = prepared["products"]
@@ -1336,29 +1635,23 @@ def main() -> None:
     date_min = facts["order_date"].min().date() if not facts.empty and facts["order_date"].notna().any() else date.today()
     date_max = facts["order_date"].max().date() if not facts.empty and facts["order_date"].notna().any() else date.today()
 
-    with st.sidebar:
-        st.markdown("---")
-        st.markdown("### Product Scope")
+    st.markdown("### Product Scope")
+    scope_col1, scope_col2, scope_col3, scope_col4 = st.columns([2.2, 2.0, 1.6, 1.4])
+
+    with scope_col1:
         selected_categories = st.multiselect(
             "Category",
             options=available_categories,
             default=default_categories,
         )
-
+    with scope_col2:
         selected_date_range = st.date_input(
             "Date Range",
             value=(date_min, date_max),
             min_value=date_min,
             max_value=date_max,
         )
-
-        if isinstance(selected_date_range, tuple) and len(selected_date_range) == 2:
-            start_date, end_date = selected_date_range
-        elif isinstance(selected_date_range, list) and len(selected_date_range) == 2:
-            start_date, end_date = selected_date_range[0], selected_date_range[1]
-        else:
-            start_date, end_date = date_min, date_max
-
+    with scope_col3:
         full_products = prepared["products_scope_full"]
         max_loss_value = float(full_products["estimated_loss"].max()) if not full_products.empty else 0.0
         loss_threshold = st.slider(
@@ -1368,8 +1661,23 @@ def main() -> None:
             value=min(100, max(int(np.ceil(max_loss_value)), 100)),
             step=10,
         )
-        risk_threshold = st.slider("Composite Risk Threshold", min_value=0, max_value=100, value=60, step=5)
-        st.caption("Filters apply to KPIs, charts, table, recommendations, and drill-down links.")
+    with scope_col4:
+        risk_threshold = st.slider(
+            "Composite Risk Threshold",
+            min_value=0,
+            max_value=100,
+            value=60,
+            step=5,
+        )
+
+    if isinstance(selected_date_range, tuple) and len(selected_date_range) == 2:
+        start_date, end_date = selected_date_range
+    elif isinstance(selected_date_range, list) and len(selected_date_range) == 2:
+        start_date, end_date = selected_date_range[0], selected_date_range[1]
+    else:
+        start_date, end_date = date_min, date_max
+
+    st.caption("Filters apply to KPIs, charts, tables, and recommendations.")
 
     st.markdown(
         "<div class='scope-note'>Lineage and cross-page consistency checks remain global; business and analytical metrics follow sidebar filters.</div>",
@@ -1422,6 +1730,7 @@ def main() -> None:
             f"{total_units_missing:,}",
             delta="Scoped missing-item events",
             color=COLORS["walmart_blue"],
+            tooltip=OPERATIONAL_KPI_TOOLTIPS["total_units_missing"],
         )
     with k2:
         kpi_card(
@@ -1429,6 +1738,7 @@ def main() -> None:
             f"${total_estimated_loss:,.0f}",
             delta=f"Forecast 90d: ${forecast_90:,.0f}",
             color=COLORS["critical"],
+            tooltip=OPERATIONAL_KPI_TOOLTIPS["total_estimated_loss"],
         )
     with k3:
         kpi_card(
@@ -1437,6 +1747,7 @@ def main() -> None:
             delta=f"Score >= {risk_threshold}",
             delta_color="inverse",
             color=COLORS["warning"],
+            tooltip=OPERATIONAL_KPI_TOOLTIPS["high_risk_skus"],
         )
     with k4:
         delta_text = f"{baseline_delta_pct:+.1f}% vs baseline"
@@ -1446,6 +1757,7 @@ def main() -> None:
             delta=delta_text,
             delta_color="inverse",
             color=COLORS["walmart_blue_light"],
+            tooltip=OPERATIONAL_KPI_TOOLTIPS["loss_trend_baseline"],
         )
 
     st.markdown("---")
@@ -1631,7 +1943,7 @@ def main() -> None:
 
     st.markdown("#### SKU Triage Workspace")
     st.markdown(
-        "<div class='product-subtitle'>Hybrid triage flow: compact executive queue plus exploratory table with drill-down actions.</div>",
+        "<div class='product-subtitle'>Hybrid triage flow: compact executive queue plus exploratory table for analyst deep dive.</div>",
         unsafe_allow_html=True,
     )
 
@@ -1719,78 +2031,21 @@ def main() -> None:
                     },
                 )
 
-        action_pool = filtered_queue if not filtered_queue.empty else sku_queue
-        action_ids = action_pool["product_id"].astype(str).tolist()
-        default_action_idx = action_ids.index(prefill_product) if prefill_product in action_ids else 0
-
-        st.markdown("##### SKU Actions")
-        selected_action_sku = st.selectbox(
-            "Select SKU for drill-down",
-            options=action_ids,
-            index=default_action_idx,
-            format_func=lambda pid: (
-                f"{pid} - "
-                f"{action_pool.loc[action_pool['product_id'].astype(str) == pid, 'product_name'].iloc[0]}"
-            ),
-        )
-
-        selected_action_row = action_pool[action_pool["product_id"].astype(str) == selected_action_sku].iloc[0]
-        selected_category = str(selected_action_row["category"])
-        selected_name = str(selected_action_row["product_name"])
-
-        st.markdown(
-            (
-                "<div class='breadcrumb'><strong>Breadcrumb:</strong> "
-                f"Product ({escape(selected_name)}) -> Customers affected -> Geographic footprint -> Pattern diagnostics"
-                "</div>"
-            ),
-            unsafe_allow_html=True,
-        )
-
-        n1, n2, n3 = st.columns(3)
-        with n1:
-            if st.button("Analyze Fraud Pattern", use_container_width=True):
-                navigate_with_filters(
-                    "pages/8_Patterns.py",
-                    {
-                        "product_id": selected_action_sku,
-                        "product_category": selected_category,
-                        "source_page": "product_analysis",
-                    },
-                )
-        with n2:
-            if st.button("Open Affected Customers", use_container_width=True):
-                navigate_with_filters(
-                    "pages/4_Customers.py",
-                    {
-                        "product_id": selected_action_sku,
-                        "product_category": selected_category,
-                        "source_page": "product_analysis",
-                    },
-                )
-        with n3:
-            if st.button("Open Geographic Footprint", use_container_width=True):
-                navigate_with_filters(
-                    "pages/5_Geographic.py",
-                    {
-                        "product_id": selected_action_sku,
-                        "product_category": selected_category,
-                        "source_page": "product_analysis",
-                    },
-                )
-
     st.markdown("---")
 
     st.markdown("#### Cross-Domain Product Relationships")
-    tabs = st.tabs(
-        [
-            "Patterns",
-            "Geographic",
-            "Customers",
-            "Drivers",
-            "Model",
-        ]
-    )
+    active_products_scope = products_scope[products_scope["times_reported_missing"] > 0].copy()
+    if active_products_scope.empty:
+        active_products_scope = products_scope[products_scope["estimated_loss"] > 0].copy()
+
+    cross_domain_facts = scoped_facts.copy()
+    if not active_products_scope.empty:
+        active_ids = set(active_products_scope["product_id"].astype(str))
+        cross_domain_facts = scoped_facts[
+            scoped_facts["product_id"].astype(str).isin(active_ids)
+        ].copy()
+
+    tabs = st.tabs(["Patterns", "Geographic", "Customers", "Model"])
 
     with tabs[0]:
         st.markdown(
@@ -1798,29 +2053,85 @@ def main() -> None:
             unsafe_allow_html=True,
         )
 
-        corr_df = products_scope[["price", "times_reported_missing", "estimated_loss", "pattern_exposure_index"]].copy()
-        corr_metrics = {
-            "price_freq_corr": corr_df["price"].corr(corr_df["times_reported_missing"]),
-            "freq_pattern_corr": corr_df["times_reported_missing"].corr(corr_df["pattern_exposure_index"]),
-            "loss_pattern_corr": corr_df["estimated_loss"].corr(corr_df["pattern_exposure_index"]),
-            "collusion_hit_rate": float(scoped_facts["is_collusion_pair"].mean() * 100) if not scoped_facts.empty else 0.0,
-        }
+        corr_pool = active_products_scope if not active_products_scope.empty else products_scope
+        corr_df = corr_pool[
+            ["price", "times_reported_missing", "estimated_loss", "pattern_exposure_index"]
+        ].copy()
+        corr_df = corr_df[pd.to_numeric(corr_df["times_reported_missing"], errors="coerce").fillna(0) > 0]
+
+        price_freq = _safe_correlation(corr_df["price"], corr_df["times_reported_missing"])
+        freq_pattern = _safe_correlation(
+            corr_df["times_reported_missing"],
+            corr_df["pattern_exposure_index"],
+        )
+        loss_pattern = _safe_correlation(
+            corr_df["estimated_loss"],
+            corr_df["pattern_exposure_index"],
+        )
+
+        collusion_base = (
+            cross_domain_facts.drop_duplicates("order_id")
+            if not cross_domain_facts.empty
+            else pd.DataFrame()
+        )
+        collusion_hit_rate = (
+            float(collusion_base["is_collusion_pair"].mean() * 100)
+            if not collusion_base.empty and "is_collusion_pair" in collusion_base.columns
+            else 0.0
+        )
 
         p1, p2, p3, p4 = st.columns(4)
         with p1:
-            st.metric("Price x Frequency Corr", f"{corr_metrics['price_freq_corr']:.2f}")
+            st.metric(
+                "Price x Frequency Corr",
+                _format_corr_value(price_freq["value"]),
+                help=(
+                    "Pearson correlation between SKU unit price and missing-event frequency "
+                    "for SKUs with at least one missing event."
+                ),
+            )
         with p2:
-            st.metric("Frequency x Pattern Corr", f"{corr_metrics['freq_pattern_corr']:.2f}")
+            st.metric(
+                "Frequency x Pattern Corr",
+                _format_corr_value(freq_pattern["value"]),
+                help=(
+                    "Pearson correlation between missing-event frequency and pattern exposure index. "
+                    "Displays N/A when sample size or variance is insufficient."
+                ),
+            )
         with p3:
-            st.metric("Loss x Pattern Corr", f"{corr_metrics['loss_pattern_corr']:.2f}")
+            st.metric(
+                "Loss x Pattern Corr",
+                _format_corr_value(loss_pattern["value"]),
+                help=(
+                    "Pearson correlation between estimated SKU loss and pattern exposure index. "
+                    "Displays N/A when sample size or variance is insufficient."
+                ),
+            )
         with p4:
-            st.metric("Collusion Pair Hit Rate", f"{corr_metrics['collusion_hit_rate']:.1f}%")
+            st.metric(
+                "Collusion Pair Hit Rate",
+                f"{collusion_hit_rate:.1f}%",
+                help=(
+                    "Share of scoped orders linked to collusion-flagged driver-customer pairs."
+                ),
+            )
 
-        top_pattern = products_scope.nlargest(12, "pattern_exposure_index").copy()
-        top_pattern = top_pattern[top_pattern["estimated_loss"] > 0]
+        st.caption(f"Correlation base: {len(corr_df):,} SKUs with missing events.")
+        corr_status = [price_freq, freq_pattern, loss_pattern]
+        if any(metric["status"] != "ok" for metric in corr_status):
+            st.caption(
+                "N/A values indicate insufficient sample size or no statistical variance after scope filters."
+            )
+
+        top_pattern = corr_pool[corr_pool["estimated_loss"] > 0].copy()
+        if not top_pattern.empty:
+            top_pattern = top_pattern.nlargest(12, "pattern_exposure_index")
         if top_pattern.empty:
             st.info("No pattern exposure events for selected scope.")
         else:
+            if top_pattern["pattern_exposure_index"].nunique() <= 1:
+                st.caption("Pattern exposure index has low variance in this scope; bars may appear flat.")
             fig_pattern = px.bar(
                 top_pattern.sort_values("pattern_exposure_index"),
                 x="pattern_exposure_index",
@@ -1844,11 +2155,25 @@ def main() -> None:
             unsafe_allow_html=True,
         )
 
-        top5_names = products_scope.head(5)["product_name"].tolist()
-        geo_df = scoped_facts[scoped_facts["product_name"].isin(top5_names)].copy()
+        geo_base = cross_domain_facts if not cross_domain_facts.empty else scoped_facts
+        top5_ids = (active_products_scope if not active_products_scope.empty else products_scope).head(5)[
+            "product_id"
+        ].astype(str).tolist()
+        geo_df = geo_base[geo_base["product_id"].astype(str).isin(top5_ids)].copy()
+        if geo_df.empty and not geo_base.empty:
+            fallback_ids = (
+                geo_base.groupby("product_id")["price"]
+                .sum()
+                .sort_values(ascending=False)
+                .head(5)
+                .index.astype(str)
+                .tolist()
+            )
+            geo_df = geo_base[geo_base["product_id"].astype(str).isin(fallback_ids)].copy()
         if geo_df.empty:
             st.info("No regional product distribution for selected scope.")
         else:
+            geo_df["product_name"] = geo_df["product_name"].fillna(geo_df["product_id"].astype(str))
             geo_agg = (
                 geo_df.groupby(["region", "product_name"])
                 .agg(estimated_loss=("price", "sum"), missing_events=("missing_item_id", "count"))
@@ -1883,11 +2208,13 @@ def main() -> None:
             unsafe_allow_html=True,
         )
 
-        if scoped_facts.empty or "spending_segment" not in scoped_facts.columns:
+        customer_base = cross_domain_facts if not cross_domain_facts.empty else scoped_facts
+        if customer_base.empty or "spending_segment" not in customer_base.columns:
             st.info("Customer segment data unavailable for selected scope.")
         else:
             customer_matrix = (
-                scoped_facts.groupby(["spending_segment", "risk_category"])
+                customer_base.dropna(subset=["spending_segment", "risk_category"])
+                .groupby(["spending_segment", "risk_category"], observed=False)
                 .size()
                 .reset_index(name="missing_events")
             )
@@ -1910,8 +2237,15 @@ def main() -> None:
                 fig_customer.update_layout(template="walmart_fraud", margin=dict(t=15, r=8, b=8, l=8))
                 st.plotly_chart(fig_customer, use_container_width=True)
 
-            high_risk_products = products_scope[products_scope["risk_tier"].isin(["High", "Critical"])]["product_id"]
-            customer_profile = scoped_facts[scoped_facts["product_id"].isin(high_risk_products)].copy()
+            risk_pool = active_products_scope if not active_products_scope.empty else products_scope
+            high_risk_products = risk_pool[risk_pool["risk_tier"].isin(["High", "Critical"])]["product_id"]
+            if len(high_risk_products) == 0 and not risk_pool.empty:
+                threshold = float(risk_pool["risk_score"].quantile(0.80))
+                high_risk_products = risk_pool[risk_pool["risk_score"] >= threshold]["product_id"]
+
+            customer_profile = customer_base[
+                customer_base["product_id"].astype(str).isin(high_risk_products.astype(str))
+            ].copy()
             if not customer_profile.empty:
                 profile = (
                     customer_profile.groupby("product_name")
@@ -1937,53 +2271,10 @@ def main() -> None:
                     use_container_width=True,
                     hide_index=True,
                 )
+            else:
+                st.info("No customer profile rows linked to high-risk SKUs in current scope.")
 
     with tabs[3]:
-        st.markdown(
-            "<div class='product-subtitle'>Top loss drivers per category linked from Drivers page metrics.</div>",
-            unsafe_allow_html=True,
-        )
-
-        if scoped_facts.empty or "driver_name" not in scoped_facts.columns:
-            st.info("Driver linkage data unavailable for selected scope.")
-        else:
-            driver_cat = (
-                scoped_facts.groupby(["category", "driver_id", "driver_name"])
-                .agg(missing_events=("missing_item_id", "count"), estimated_loss=("price", "sum"))
-                .reset_index()
-            )
-            top_driver_cat = (
-                driver_cat.sort_values(["category", "estimated_loss"], ascending=[True, False])
-                .groupby("category")
-                .head(1)
-                .sort_values("estimated_loss", ascending=False)
-            )
-            if top_driver_cat.empty:
-                st.info("No driver-category pattern for selected scope.")
-            else:
-                st.dataframe(
-                    top_driver_cat.style.format({"estimated_loss": "${:,.2f}"}),
-                    use_container_width=True,
-                    hide_index=True,
-                )
-
-                fig_driver = px.bar(
-                    top_driver_cat.sort_values("estimated_loss"),
-                    x="estimated_loss",
-                    y="category",
-                    color="driver_name",
-                    orientation="h",
-                    hover_data={"missing_events": True},
-                )
-                fig_driver.update_layout(
-                    template="walmart_fraud",
-                    margin=dict(t=15, r=8, b=8, l=8),
-                    xaxis_title="Estimated Loss (USD)",
-                    yaxis_title=None,
-                )
-                st.plotly_chart(fig_driver, use_container_width=True)
-
-    with tabs[4]:
         st.markdown(
             "<div class='product-subtitle'>Category-level model confidence proxy using global drift/performance signals.</div>",
             unsafe_allow_html=True,
@@ -2064,108 +2355,421 @@ def main() -> None:
     st.markdown("---")
 
     st.markdown("#### Business Metrics and SKU Economics")
-    overall_revenue = float(workspace["overview_metrics"].get("total_revenue", 0.0))
-    loss_pct_revenue_total = _safe_ratio(total_estimated_loss, overall_revenue) * 100 if overall_revenue else 0.0
+    scoped_revenue = build_scoped_revenue(scoped_facts)
+    loss_pct_revenue_total = _safe_ratio(total_estimated_loss, scoped_revenue) * 100 if scoped_revenue else 0.0
     margin_at_risk = float(products_scope["margin_loss"].sum())
     opportunity_cost = float(products_scope["opportunity_cost"].sum())
+    forecast_lookup = (
+        forecast_scope.set_index("horizon_days")["projected_loss"].to_dict()
+        if not forecast_scope.empty
+        else {}
+    )
+    forecast_30 = float(forecast_lookup.get(30, 0.0))
+    forecast_60 = float(forecast_lookup.get(60, 0.0))
 
     b1, b2, b3, b4 = st.columns(4)
     with b1:
-        kpi_card("Loss as % Revenue", f"{loss_pct_revenue_total:.2f}%", delta="Scoped loss / total revenue", color=COLORS["critical"])
+        kpi_card(
+            "Loss as % Revenue",
+            f"{loss_pct_revenue_total:.2f}%",
+            delta=f"Loss ${total_estimated_loss:,.0f} / Revenue ${scoped_revenue:,.0f}",
+            color=COLORS["critical"],
+            tooltip=KPI_TOOLTIPS["loss_pct_revenue"],
+        )
     with b2:
-        kpi_card("Margin at Risk", f"${margin_at_risk:,.0f}", delta="Estimated margin exposure", color=COLORS["warning"])
+        kpi_card(
+            "Margin at Risk",
+            f"${margin_at_risk:,.0f}",
+            delta="Estimated margin exposure",
+            color=COLORS["warning"],
+            tooltip=KPI_TOOLTIPS["margin_at_risk"],
+        )
     with b3:
-        kpi_card("Opportunity Cost", f"${opportunity_cost:,.0f}", delta="Loss x 1.25 proxy", color=COLORS["walmart_blue"])
+        kpi_card(
+            "Opportunity Cost",
+            f"${opportunity_cost:,.0f}",
+            delta="Loss x 1.25 proxy",
+            color=COLORS["walmart_blue"],
+            tooltip=KPI_TOOLTIPS["opportunity_cost"],
+        )
     with b4:
-        kpi_card("Forecast 30/60/90", f"${forecast_90:,.0f}", delta="Projected 90-day loss", color=COLORS["walmart_blue_light"])
+        kpi_card(
+            "Forecast 30/60/90",
+            f"${forecast_90:,.0f}",
+            delta=f"30d ${forecast_30:,.0f} | 60d ${forecast_60:,.0f}",
+            color=COLORS["walmart_blue_light"],
+            tooltip=KPI_TOOLTIPS["forecast_306090"],
+        )
+    st.caption(
+        "Consistency check: Total Estimated Loss and Forecast 90d reuse the same scoped base as Operational Intelligence; "
+        "all KPIs/charts in this section follow Product Scope filters."
+    )
 
     biz_col1, biz_col2 = st.columns(2)
 
     with biz_col1:
-        st.markdown("#### Margin x Loss at SKU Level")
+        st.markdown(
+            "#### Margin x Loss at SKU Level "
+            f"<span title=\"{escape(CHART_TOOLTIPS['margin_loss_sku'], quote=True)}\">ℹ️</span>",
+            unsafe_allow_html=True,
+        )
         if products_scope.empty:
             st.info("No SKU economics data.")
         else:
-            fig_margin = px.scatter(
-                products_scope[products_scope["estimated_loss"] > 0],
-                x="margin_rate",
-                y="estimated_loss",
-                size="risk_score",
-                color="category",
-                color_discrete_map=category_color_map,
-                hover_data={
-                    "product_name": True,
-                    "stock_turnover_proxy": ":.1f",
-                    "prevention_roi": ":.1f",
-                    "risk_score": ":.1f",
-                },
-                opacity=0.8,
-            )
-            fig_margin.update_layout(
-                template="walmart_fraud",
-                margin=dict(t=15, r=8, b=8, l=8),
-                xaxis_title="Margin Rate",
-                yaxis_title="Estimated Loss (USD)",
-            )
-            st.plotly_chart(fig_margin, use_container_width=True)
+            margin_df = build_margin_loss_plot_frame(products_scope)
+            if margin_df.empty:
+                st.info("No SKU economics data.")
+            else:
+                control_col1, control_col2 = st.columns([1, 1])
+                with control_col1:
+                    top_n = st.slider(
+                        "Top SKUs destacados",
+                        min_value=5,
+                        max_value=15,
+                        value=8,
+                        step=1,
+                        key="margin_loss_top_n",
+                    )
+                with control_col2:
+                    highlight_focus = st.toggle(
+                        "Destacar apenas Electronics e Supermarket",
+                        value=True,
+                        key="margin_loss_focus_toggle",
+                    )
+
+                top_loss_ids = set(margin_df.nlargest(int(top_n), "estimated_loss")["product_id"].astype(str))
+                margin_df["is_top_sku"] = margin_df["product_id"].astype(str).isin(top_loss_ids)
+                margin_df["is_focus_category"] = margin_df["category"].isin(["Electronics", "Supermarket"])
+                margin_df["sku_label"] = np.where(margin_df["is_top_sku"], margin_df["product_name"], "")
+
+                positive_losses = margin_df["estimated_loss"][margin_df["estimated_loss"] > 0]
+                min_positive_loss = float(positive_losses.min()) if not positive_losses.empty else 0.0
+                max_loss = float(positive_losses.max()) if not positive_losses.empty else 0.0
+                dispersion_ratio = max_loss / max(min_positive_loss, 1e-9) if max_loss > 0 else 0.0
+                use_log_y = bool(len(positive_losses) >= 10 and dispersion_ratio >= 20)
+                scale_label = (
+                    "Escala logaritmica para melhorar comparabilidade."
+                    if use_log_y
+                    else "Escala linear."
+                )
+                st.markdown(
+                    (
+                        "<div class='product-subtitle'>"
+                        f"Quadrante superior direito concentra maior impacto financeiro; labels mostram Top {int(top_n)} SKUs por loss. "
+                        f"{scale_label}"
+                        "</div>"
+                    ),
+                    unsafe_allow_html=True,
+                )
+
+                avg_margin_pct = float(margin_df["margin_pct"].mean()) if not margin_df.empty else 0.0
+                avg_loss = float(margin_df["estimated_loss"].mean()) if not margin_df.empty else 0.0
+
+                fig_margin = px.scatter(
+                    margin_df,
+                    x="margin_pct",
+                    y="estimated_loss",
+                    size="bubble_size",
+                    color="category",
+                    color_discrete_map=category_color_map,
+                    hover_data={
+                        "product_id": True,
+                        "product_name": True,
+                        "category": True,
+                        "margin_pct": ":.1f",
+                        "estimated_loss": ":.2f",
+                        "times_reported_missing": ":.0f",
+                        "risk_score": ":.1f",
+                        "bubble_size": False,
+                        "is_top_sku": False,
+                        "is_focus_category": False,
+                        "sku_label": False,
+                    },
+                    opacity=0.45,
+                    log_y=use_log_y,
+                )
+
+                top_df = margin_df[margin_df["is_top_sku"]].copy()
+                if not top_df.empty:
+                    fig_margin.add_trace(
+                        go.Scatter(
+                            x=top_df["margin_pct"],
+                            y=top_df["estimated_loss"],
+                            mode="markers+text",
+                            text=top_df["sku_label"],
+                            textposition="top center",
+                            showlegend=False,
+                            marker=dict(
+                                size=top_df["bubble_size"].tolist(),
+                                color=[
+                                    category_color_map.get(cat, COLORS["walmart_blue_light"])
+                                    for cat in top_df["category"].tolist()
+                                ],
+                                line=dict(width=2, color="#0f172a"),
+                                opacity=0.9,
+                            ),
+                            customdata=np.stack(
+                                [
+                                    top_df["product_id"].to_numpy(),
+                                    top_df["product_name"].to_numpy(),
+                                    top_df["category"].to_numpy(),
+                                    top_df["times_reported_missing"].to_numpy(),
+                                    top_df["risk_score"].to_numpy(),
+                                ],
+                                axis=-1,
+                            ),
+                            hovertemplate=(
+                                "SKU: %{customdata[0]}<br>"
+                                "Product: %{customdata[1]}<br>"
+                                "Category: %{customdata[2]}<br>"
+                                "Margin: %{x:.1f}%<br>"
+                                "Loss: $%{y:,.2f}<br>"
+                                "Missing events: %{customdata[3]:.0f}<br>"
+                                "Risk score: %{customdata[4]:.1f}<extra></extra>"
+                            ),
+                        )
+                    )
+
+                for trace in fig_margin.data:
+                    if not trace.showlegend:
+                        continue
+                    base_opacity = 0.45
+                    if highlight_focus and trace.name not in ["Electronics", "Supermarket"]:
+                        trace.opacity = 0.2
+                    else:
+                        trace.opacity = base_opacity
+                    trace.marker.line = dict(width=0.6, color="#ffffff")
+
+                fig_margin.update_traces(textposition="top center")
+                fig_margin.add_vline(
+                    x=avg_margin_pct,
+                    line_dash="dot",
+                    line_color=COLORS["warning"],
+                    annotation_text="Avg margin",
+                )
+                fig_margin.add_hline(
+                    y=avg_loss,
+                    line_dash="dot",
+                    line_color=COLORS["critical"],
+                    annotation_text="Avg loss",
+                )
+                fig_margin.update_layout(
+                    template="walmart_fraud",
+                    margin=dict(t=15, r=8, b=8, l=8),
+                    xaxis_title="Margin Rate (%)",
+                    yaxis_title="Estimated Loss (USD)",
+                    legend_title_text="Category",
+                    hovermode="closest",
+                    uniformtext_minsize=8,
+                )
+                st.plotly_chart(fig_margin, use_container_width=True)
 
     with biz_col2:
-        st.markdown("#### Replacement vs Prevention ROI by Category")
+        st.markdown(
+            "#### Replacement vs Prevention ROI by Category "
+            f"<span title=\"{escape(CHART_TOOLTIPS['replacement_prevention_roi'], quote=True)}\">ℹ️</span>",
+            unsafe_allow_html=True,
+        )
+        st.markdown(
+            "<div class='product-subtitle'>Compare custo de reposicao vs prevencao e priorize categorias com maior economia potencial.</div>",
+            unsafe_allow_html=True,
+        )
         if category_scope.empty:
             st.info("No category economics data.")
         else:
             roi_df = category_scope[["category", "replacement_cost", "prevention_cost", "prevention_roi"]].copy()
-            fig_roi = px.bar(
-                roi_df,
-                x="category",
-                y=["replacement_cost", "prevention_cost"],
-                barmode="group",
-                labels={"value": "USD", "variable": "Cost Type"},
+            roi_df["potential_savings_usd"] = (
+                pd.to_numeric(roi_df["replacement_cost"], errors="coerce").fillna(0.0)
+                - pd.to_numeric(roi_df["prevention_cost"], errors="coerce").fillna(0.0)
             )
+            roi_df["potential_savings_pct"] = (
+                _divide_series(roi_df["potential_savings_usd"], roi_df["replacement_cost"]) * 100
+            )
+            roi_df = roi_df.sort_values("potential_savings_usd", ascending=False)
+            roi_df["opportunity_flag"] = (
+                pd.to_numeric(roi_df["replacement_cost"], errors="coerce").fillna(0.0)
+                >= pd.to_numeric(roi_df["prevention_cost"], errors="coerce").fillna(0.0) * 1.5
+            )
+            replacement_colors = [
+                COLORS["critical"] if flag else COLORS["walmart_blue_light"]
+                for flag in roi_df["opportunity_flag"].tolist()
+            ]
+
+            fig_roi = go.Figure()
+            fig_roi.add_trace(
+                go.Bar(
+                    name="Replacement Cost",
+                    x=roi_df["category"],
+                    y=roi_df["replacement_cost"],
+                    marker_color=replacement_colors,
+                    text=[f"${value:,.0f}" for value in roi_df["replacement_cost"].tolist()],
+                    textposition="outside",
+                    hovertemplate="Category: %{x}<br>Replacement: $%{y:,.2f}<extra></extra>",
+                )
+            )
+            fig_roi.add_trace(
+                go.Bar(
+                    name="Prevention Cost",
+                    x=roi_df["category"],
+                    y=roi_df["prevention_cost"],
+                    marker_color=COLORS["warning"],
+                    text=[f"${value:,.0f}" for value in roi_df["prevention_cost"].tolist()],
+                    textposition="outside",
+                    hovertemplate="Category: %{x}<br>Prevention: $%{y:,.2f}<extra></extra>",
+                )
+            )
+            for _, row in roi_df.iterrows():
+                y_anchor = max(float(row["replacement_cost"]), float(row["prevention_cost"])) * 1.08
+                fig_roi.add_annotation(
+                    x=row["category"],
+                    y=y_anchor,
+                    text=f"{float(row['potential_savings_pct']):.0f}% savings",
+                    showarrow=False,
+                    font=dict(size=10, color="#334155"),
+                )
             fig_roi.update_layout(
                 template="walmart_fraud",
                 margin=dict(t=15, r=8, b=8, l=8),
+                barmode="group",
                 xaxis_title=None,
                 yaxis_title="Cost (USD)",
+                legend_title_text="Cost Type",
             )
-            fig_roi.add_hline(
-                y=float(roi_df["prevention_cost"].mean()),
-                line_dash="dot",
-                line_color=COLORS["warning"],
-                annotation_text="Avg prevention cost",
-            )
+            avg_prevention_cost = float(roi_df["prevention_cost"].mean()) if not roi_df.empty else 0.0
+            if avg_prevention_cost > 0:
+                fig_roi.add_hline(
+                    y=avg_prevention_cost,
+                    line_dash="dot",
+                    line_color=COLORS["warning"],
+                    annotation_text="Avg prevention cost",
+                )
             st.plotly_chart(fig_roi, use_container_width=True)
-
-            st.dataframe(
-                roi_df.style.format(
-                    {
-                        "replacement_cost": "${:,.2f}",
-                        "prevention_cost": "${:,.2f}",
-                        "prevention_roi": "{:.1f}%",
-                    }
-                ),
-                use_container_width=True,
-                hide_index=True,
-            )
 
     forecast_col, rec_col = st.columns([1.2, 1.8])
     with forecast_col:
-        st.markdown("#### Forecast")
-        fig_forecast = px.bar(
-            forecast_scope,
-            x="horizon_days",
-            y="projected_loss",
-            text="projected_loss",
-            color="projected_loss",
-            color_continuous_scale="Reds",
+        st.markdown(
+            "#### Forecast: Historical Context + 30/60/90 Projection "
+            f"<span title=\"{escape(CHART_TOOLTIPS['forecast'], quote=True)}\">ℹ️</span>",
+            unsafe_allow_html=True,
         )
-        fig_forecast.update_traces(texttemplate="$%{text:,.0f}", textposition="outside")
+        st.markdown(
+            "<div class='product-subtitle'>Linha azul = historico acumulado (60 dias), vermelho = projecao com faixa min/max e baseline esperado.</div>",
+            unsafe_allow_html=True,
+        )
+        daily_loss = (
+            scoped_facts.dropna(subset=["order_date"])
+            .groupby("order_date")["price"]
+            .sum()
+            .sort_index()
+            .asfreq("D", fill_value=0.0)
+            if not scoped_facts.empty
+            else pd.Series(dtype=float)
+        )
+        hist_60 = daily_loss.tail(60)
+        hist_60_cum = hist_60.cumsum() if not hist_60.empty else pd.Series(dtype=float)
+        last_date = hist_60.index.max() if not hist_60.empty else pd.Timestamp(end_date)
+
+        forecast_plot = forecast_scope.copy()
+        forecast_plot["forecast_date"] = forecast_plot["horizon_days"].apply(
+            lambda horizon: last_date + pd.Timedelta(days=int(horizon))
+        )
+        daily_baseline = float(daily_loss.mean()) if not daily_loss.empty else 0.0
+        forecast_plot["baseline_target"] = forecast_plot["horizon_days"] * daily_baseline
+
+        fig_forecast = go.Figure()
+        if not hist_60_cum.empty:
+            fig_forecast.add_trace(
+                go.Scatter(
+                    x=hist_60_cum.index,
+                    y=hist_60_cum.values,
+                    mode="lines",
+                    name="Historical cumulative loss (last 60d)",
+                    line=dict(color=COLORS["walmart_blue_light"], width=2),
+                    hovertemplate="%{x|%Y-%m-%d}<br>Historical cumulative: $%{y:,.2f}<extra></extra>",
+                )
+            )
+
+        fig_forecast.add_trace(
+            go.Scatter(
+                x=forecast_plot["forecast_date"],
+                y=forecast_plot["projected_loss_high"],
+                mode="lines",
+                line=dict(width=0),
+                showlegend=False,
+                hoverinfo="skip",
+            )
+        )
+        fig_forecast.add_trace(
+            go.Scatter(
+                x=forecast_plot["forecast_date"],
+                y=forecast_plot["projected_loss_low"],
+                mode="lines",
+                line=dict(width=0),
+                fill="tonexty",
+                fillcolor="rgba(239, 68, 68, 0.15)",
+                name="Projection range (min/max)",
+                hovertemplate=(
+                    "%{x|%Y-%m-%d}<br>"
+                    "Projected range: $%{y:,.2f}<extra></extra>"
+                ),
+            )
+        )
+        fig_forecast.add_trace(
+            go.Scatter(
+                x=forecast_plot["forecast_date"],
+                y=forecast_plot["projected_loss"],
+                mode="lines+markers+text",
+                text=[
+                    f"{int(days)}d: ${value:,.0f}"
+                    for days, value in zip(
+                        forecast_plot["horizon_days"].tolist(),
+                        forecast_plot["projected_loss"].tolist(),
+                    )
+                ],
+                textposition="top center",
+                marker=dict(color=COLORS["critical"], size=9),
+                line=dict(color=COLORS["critical"], width=3),
+                name="Projected cumulative loss",
+                hovertemplate="%{x|%Y-%m-%d}<br>Projected cumulative: $%{y:,.2f}<extra></extra>",
+            )
+        )
+        fig_forecast.add_trace(
+            go.Scatter(
+                x=forecast_plot["forecast_date"],
+                y=forecast_plot["baseline_target"],
+                mode="lines",
+                line=dict(color=COLORS["warning"], width=2, dash="dot"),
+                name="Baseline target",
+                hovertemplate="%{x|%Y-%m-%d}<br>Baseline target: $%{y:,.2f}<extra></extra>",
+            )
+        )
+        now_line_x = pd.Timestamp(last_date).to_pydatetime()
+        fig_forecast.add_shape(
+            type="line",
+            x0=now_line_x,
+            x1=now_line_x,
+            y0=0,
+            y1=1,
+            xref="x",
+            yref="paper",
+            line=dict(color="#64748b", dash="dash"),
+        )
+        fig_forecast.add_annotation(
+            x=now_line_x,
+            y=1,
+            xref="x",
+            yref="paper",
+            text="Now",
+            showarrow=False,
+            yshift=10,
+            font=dict(size=10, color="#64748b"),
+        )
         fig_forecast.update_layout(
             template="walmart_fraud",
             margin=dict(t=15, r=8, b=8, l=8),
-            xaxis_title="Horizon (days)",
-            yaxis_title="Projected Loss (USD)",
-            showlegend=False,
+            xaxis_title="Date",
+            yaxis_title="Cumulative Loss (USD)",
+            legend_title_text=None,
         )
         st.plotly_chart(fig_forecast, use_container_width=True)
 
@@ -2179,38 +2783,6 @@ def main() -> None:
                 f"{row['rationale']}"
             )
             insight_card(f"Action {idx + 1}", body, icon="Plan", compact=True)
-
-    st.markdown("---")
-
-    st.markdown("#### Data Lineage and Knowledge Base Validation")
-    lineage_col1, lineage_col2 = st.columns(2)
-
-    with lineage_col1:
-        st.markdown("##### Knowledge Base Coverage")
-        kb_df = build_knowledge_base_registry()
-        st.dataframe(kb_df, use_container_width=True, hide_index=True)
-
-    with lineage_col2:
-        st.markdown("##### Source and Transformations")
-        source_rows = []
-        for source_name, meta in workspace.get("source_metadata", {}).items():
-            source_rows.append(
-                {
-                    "source": source_name,
-                    "table": meta.get("source", "N/A"),
-                    "rows": meta.get("rows", 0),
-                    "last_updated": meta.get("last_updated", "N/A"),
-                    "transformations": " | ".join(meta.get("transformations", [])),
-                }
-            )
-        source_df = pd.DataFrame(source_rows)
-        if source_df.empty:
-            st.info("No source metadata available.")
-        else:
-            st.dataframe(source_df, use_container_width=True, hide_index=True)
-
-    st.markdown("##### Cross-Page Consistency Checks")
-    st.dataframe(prepared["consistency_df"], use_container_width=True, hide_index=True)
 
 if __name__ == "__main__":
     main()

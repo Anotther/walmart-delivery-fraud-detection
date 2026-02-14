@@ -8,6 +8,7 @@ import pandas as pd
 
 from src.models.outlier_detection import IsolationForestModel, EnsembleOutlierDetector
 from src.models.clustering import KMeansModel
+from src.config.risk_thresholds import RiskThresholds
 
 
 @dataclass
@@ -22,13 +23,6 @@ class RiskScore:
 
 class RiskScoringEngine:
     """Engine for calculating comprehensive risk scores."""
-
-    # Risk category thresholds
-    RISK_THRESHOLDS = {
-        "low": 25,
-        "medium": 50,
-        "high": 75,
-    }
 
     # Feature weights for scoring
     DEFAULT_WEIGHTS = {
@@ -71,14 +65,8 @@ class RiskScoringEngine:
         return self
 
     def _categorize_risk(self, score: float) -> str:
-        """Convert numeric score to category."""
-        if score < self.RISK_THRESHOLDS["low"]:
-            return "Low"
-        elif score < self.RISK_THRESHOLDS["medium"]:
-            return "Medium"
-        elif score < self.RISK_THRESHOLDS["high"]:
-            return "High"
-        return "Critical"
+        """Convert numeric score to category using RiskThresholds."""
+        return RiskThresholds.get_category(score)
 
     def _normalize(self, values: np.ndarray) -> np.ndarray:
         """Normalize values to 0-100 scale."""
@@ -302,16 +290,18 @@ def create_risk_report(scores: List[RiskScore]) -> pd.DataFrame:
 
 def get_high_risk_entities(
     scores: List[RiskScore],
-    threshold: float = 75.0
+    threshold: float = None
 ) -> List[RiskScore]:
     """
     Filter high-risk entities.
 
     Args:
         scores: List of RiskScore objects
-        threshold: Minimum score to be considered high-risk
+        threshold: Minimum score to be considered high-risk (default: RiskThresholds.HIGH)
 
     Returns:
         Filtered list of high-risk entities
     """
+    if threshold is None:
+        threshold = RiskThresholds.HIGH
     return [s for s in scores if s.score >= threshold]
