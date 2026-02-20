@@ -12,8 +12,25 @@ load_dotenv()
 
 # Base paths
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
-DATA_DIR = Path(os.getenv("DATA_PATH", BASE_DIR / "data"))
-OUTPUT_DIR = Path(os.getenv("OUTPUT_PATH", BASE_DIR / "outputs"))
+
+# Resolve data/output paths - always use absolute paths
+_data_path = os.getenv("DATA_PATH", "")
+if _data_path:
+    DATA_DIR = Path(_data_path)
+    # If relative path, resolve relative to BASE_DIR
+    if not DATA_DIR.is_absolute():
+        DATA_DIR = BASE_DIR / DATA_DIR
+else:
+    DATA_DIR = BASE_DIR / "data"
+
+_output_path = os.getenv("OUTPUT_PATH", "")
+if _output_path:
+    OUTPUT_DIR = Path(_output_path)
+    # If relative path, resolve relative to BASE_DIR
+    if not OUTPUT_DIR.is_absolute():
+        OUTPUT_DIR = BASE_DIR / OUTPUT_DIR
+else:
+    OUTPUT_DIR = BASE_DIR / "outputs"
 
 # Ensure directories exist
 DATA_DIR.mkdir(parents=True, exist_ok=True)
@@ -42,6 +59,10 @@ APP_ENV = os.getenv("APP_ENV", "development").strip().lower()
 _debug_from_env = os.getenv("DEBUG", "False").lower() in ("true", "1", "yes")
 # Never allow debug mode in production, even if env var is misconfigured.
 DEBUG = _debug_from_env and APP_ENV != "production"
+
+# Data source configuration
+DATA_SOURCE = os.getenv("DATA_SOURCE", "csv").lower().strip()
+# Valid values: "csv", "database"
 
 # MLflow settings
 MLFLOW_TRACKING_URI = os.getenv("MLFLOW_TRACKING_URI", str(BASE_DIR / "mlflow"))

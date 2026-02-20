@@ -1510,8 +1510,8 @@ def main():
 
         d1, d2 = st.columns([1.2, 1])
         with d1:
-            st.markdown(f"**{driver_row['driver_name']}**")
-            st.markdown(f"ID: `{driver_row['driver_id']}`")
+            st.markdown(f"**{escape(str(driver_row['driver_name']))}**")
+            st.markdown(f"ID: `{escape(str(driver_row['driver_id']))}`")
             risk_badge(str(driver_row["risk_category"]))
 
             st.markdown("**Key metrics**")

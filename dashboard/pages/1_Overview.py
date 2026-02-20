@@ -20,7 +20,7 @@ from src.dashboard.components import (
     render_sidebar,
     risk_badge
 )
-from src.dashboard.data_cache import get_default_cache
+from src.dashboard.data_cache import get_default_cache, reset_default_cache
 
 st.set_page_config(
     page_title="Executive Overview - Walmart Fraud Detection",
@@ -32,19 +32,58 @@ st.set_page_config(
 # Load Global CSS
 load_css()
 
-@st.cache_data(ttl=900)
-def get_dashboard_data():
+def get_data_source_version():
+    """Get a version string for cache invalidation based on data source type."""
+    from src.data_source import get_data_source
+    ds = get_data_source()
+    # Include data availability in version to invalidate cache if source changes
+    return f"{ds.source_type}_{ds.is_available()}"
+
+
+def ensure_fresh_cache():
+    """Reset cache if needed to ensure fresh data."""
+    from src.data_source import get_data_source
+    ds = get_data_source()
+
+    # Check if we need to reset the cache
+    # This happens when the data source type changes or becomes unavailable
+    cache = get_default_cache()
+
+    # If cache's data source type doesn't match current, reset it
+    if hasattr(cache, '_data_source') and cache._data_source.source_type != ds.source_type:
+        reset_default_cache()
+
+
+@st.cache_data(ttl=900, show_spinner="Loading dashboard data...")
+def get_dashboard_data(_source_version: str):
     """
     Fetch all necessary data for the overview page using lazy loading.
     This method loads only the data required for the Overview page,
     reducing load time and memory footprint.
+
+    Args:
+        _source_version: Cache version key (from get_data_source_version())
     """
     cache = get_default_cache()
 
     # Use lazy loading - only loads data needed for this page
     page_data = cache.get_page_data('overview')
 
-    # Extract required datasets from page data
+    # Check for errors in page_data
+    error_keys = [k for k in page_data.keys() if k.endswith('_error')]
+    if error_keys:
+        errors = {k: page_data[k] for k in error_keys}
+        st.error(f"Error loading page data: {errors}")
+        st.stop()
+
+    # Extract required datasets from page data with error handling
+    required_keys = ['overview_metrics', 'temporal_trends', 'risk_distribution', 'top_suspicious']
+    missing_keys = [k for k in required_keys if k not in page_data]
+    if missing_keys:
+        st.error(f"Missing required data keys: {missing_keys}")
+        st.error(f"Available keys: {list(page_data.keys())}")
+        st.stop()
+
     metrics = page_data['overview_metrics']
     trends = page_data['temporal_trends']
     # Re-fetch alerts with specific threshold (page_data uses default threshold)
@@ -91,8 +130,12 @@ def main():
     # Sidebar
     render_sidebar()
 
-    # Load Data
-    metrics, trends, alerts, regional, risk_dist, top_suspicious = get_dashboard_data()
+    # Ensure cache is fresh (reset if data source changed)
+    ensure_fresh_cache()
+
+    # Load Data with cache invalidation based on data source
+    source_version = get_data_source_version()
+    metrics, trends, alerts, regional, risk_dist, top_suspicious = get_dashboard_data(source_version)
     business_impact = calculate_business_impact(metrics)
     delta_missing, trend_direction = calculate_trend_delta(trends['monthly'])
 

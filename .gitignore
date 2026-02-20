@@ -54,13 +54,15 @@ outputs/
 # Logs
 *.log
 logs/
+streamlit.log
 
 # OS
 .DS_Store
 Thumbs.db
 
-# Data (keep structure, ignore large files)
-# data/*.csv  # Uncomment if you want to ignore CSV files
+# Data (CSV files will be committed for Streamlit Cloud deployment)
+# Note: Use PRIVATE repository on GitHub to protect sensitive data
+# data/*.csv
 
 # Temporary files
 *.tmp

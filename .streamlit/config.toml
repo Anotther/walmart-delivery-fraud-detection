@@ -9,3 +9,11 @@ font = "sans serif"
 [client]
 showSidebarNavigation = false
 showErrorDetails = "none"
+
+[server]
+enableCORS = false
+enableXsrfProtection = true
+headless = true
+
+[browser]
+gatherUsageStats = false

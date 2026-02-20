@@ -24,10 +24,7 @@ from src.dashboard.components import COLORS
 
 from src.config.risk_thresholds import RiskThresholds
 
-from src.database.connection import (
-    load_orders, load_drivers, load_customers, load_products,
-    load_missing_items, get_summary_stats
-)
+from src.data_source import DataSource, get_data_source
 from src.analysis.fraud_patterns import analyze_all_fraud_patterns
 from src.analysis.temporal import get_temporal_summary
 from src.database.manager import get_db_manager
@@ -133,18 +130,20 @@ class DashboardCache:
         }
     }
 
-    def __init__(self, ttl_minutes: int = 15, db_manager=None):
+    def __init__(self, ttl_minutes: int = 15, db_manager=None, data_source: DataSource = None):
         """
         Initialize the dashboard cache.
 
         Args:
             ttl_minutes: Default cache time-to-live in minutes (default: 15)
             db_manager: Optional DatabaseManager instance for fallback handling
+            data_source: Optional DataSource instance for dependency injection (useful for testing)
         """
         self.default_ttl_minutes = ttl_minutes
         self._cache: Dict[str, Dict[str, Any]] = {}
         self._lock = threading.RLock()
         self._db_manager = db_manager if db_manager is not None else get_db_manager()
+        self._data_source = data_source if data_source is not None else get_data_source()
         self._fallback_mode = False
 
     def _is_cache_valid(self, cache_key: str) -> bool:
@@ -392,7 +391,7 @@ class DashboardCache:
 
     def _compute_orders_with_features(self) -> pd.DataFrame:
         """Compute orders dataset enriched with derived analytical features."""
-        orders = load_orders()
+        orders = self._data_source.load_orders()
         orders['order_date'] = pd.to_datetime(orders['order_date'])
         orders['total_items'] = orders['items_delivered'] + orders['items_missing']
         orders['missing_rate'] = np.where(
@@ -458,8 +457,8 @@ class DashboardCache:
             return cached
 
         orders = self._load_orders_with_features()
-        drivers = load_drivers()
-        customers = load_customers()
+        drivers = self._data_source.load_drivers()
+        customers = self._data_source.load_customers()
 
         total_items = orders['items_delivered'].sum() + orders['items_missing'].sum()
         total_missing = orders['items_missing'].sum()
@@ -518,7 +517,7 @@ class DashboardCache:
             return cached
 
         orders = self._load_orders_with_features()
-        drivers = load_drivers()
+        drivers = self._data_source.load_drivers()
 
         # Aggregate orders by driver
         driver_orders = orders.groupby('driver_id').agg({
@@ -585,7 +584,7 @@ class DashboardCache:
             return cached
 
         orders = self._load_orders_with_features()
-        customers = load_customers()
+        customers = self._data_source.load_customers()
 
         # Aggregate orders by customer
         customer_orders = orders.groupby('customer_id').agg({
@@ -934,8 +933,8 @@ class DashboardCache:
         if cached is not None:
             return cached
 
-        missing_items = load_missing_items()
-        products = load_products()
+        missing_items = self._data_source.load_missing_items()
+        products = self._data_source.load_products()
 
         # Count missing reports per product
         product_missing = missing_items.groupby('product_id').agg({
@@ -969,8 +968,8 @@ class DashboardCache:
             return cached
 
         orders = self._load_orders_with_features()
-        products = load_products()
-        missing_items = load_missing_items()
+        products = self._data_source.load_products()
+        missing_items = self._data_source.load_missing_items()
 
         product_summary = self.get_product_summary()
         customer_summary = self.get_customer_summary()
@@ -1134,8 +1133,8 @@ class DashboardCache:
             return cached
 
         orders = self._load_orders_with_features()
-        drivers = load_drivers()
-        customers = load_customers()
+        drivers = self._data_source.load_drivers()
+        customers = self._data_source.load_customers()
 
         result = analyze_all_fraud_patterns(orders, drivers, customers)
         self._set_cache(cache_key, result)
@@ -1154,7 +1153,7 @@ class DashboardCache:
             return cached
 
         # Use raw orders because temporal analyzer expects delivery_hour in time format.
-        orders = load_orders()
+        orders = self._data_source.load_orders()
         orders['order_date'] = pd.to_datetime(orders['order_date'], errors='coerce')
         result = get_temporal_summary(orders)
         self._set_cache(cache_key, result)
@@ -1270,9 +1269,9 @@ class DashboardCache:
             self.clear_cache(cache_key)
 
         orders = self._load_orders_with_features()
-        drivers = load_drivers()
-        customers = load_customers()
-        products = load_products()
+        drivers = self._data_source.load_drivers()
+        customers = self._data_source.load_customers()
+        products = self._data_source.load_products()
 
         def _count_missing_or_blank(df: pd.DataFrame, column: str) -> int:
             if column not in df.columns:
@@ -1843,6 +1842,18 @@ def get_default_cache(ttl_minutes: int = 15) -> DashboardCache:
     if _default_cache is None:
         _default_cache = DashboardCache(ttl_minutes=ttl_minutes)
     return _default_cache
+
+
+def reset_default_cache() -> None:
+    """
+    Reset the default cache instance.
+
+    This is useful when the data source changes or for testing.
+    """
+    global _default_cache
+    if _default_cache is not None:
+        _default_cache.clear_cache()
+    _default_cache = None
 
 
 if __name__ == "__main__":
