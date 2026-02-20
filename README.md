@@ -1,4 +1,4 @@
-# 🛒 Walmart Delivery Fraud Detection System
+# Walmart Delivery Fraud Detection System
 
 <div align="center">
 
@@ -16,16 +16,16 @@
 
 ---
 
-## 📊 Project Overview
+## Project Overview
 
 This project addresses a critical business challenge: **Walmart faced $6.5 billion in theft losses in 2023**, with **53% of the 2022-2023 increase** coming from e-commerce deliveries where customers report missing items.
 
 The system analyzes delivery data from Central Florida (2023) to identify fraud patterns and determine responsibility among:
-- 🚗 **Delivery drivers** (theft, collusion)
-- 👥 **Customers** (false claims)
-- 🏢 **Systemic issues** (operational failures)
+- **Delivery drivers** (theft, collusion)
+- **Customers** (false claims)
+- **Systemic issues** (operational failures)
 
-### 🎯 Key Objectives
+### Key Objectives
 
 1. **Pattern Detection**: Identify anomalous behavior using unsupervised ML
 2. **Risk Scoring**: Quantify fraud risk for drivers, customers, and orders
@@ -34,23 +34,23 @@ The system analyzes delivery data from Central Florida (2023) to identify fraud 
 
 ---
 
-## ✨ Features
+## Features
 
-### 📈 Interactive Dashboard (Streamlit)
+### Interactive Dashboard (Streamlit)
 
 A multi-page analytics platform with 9 specialized modules:
 
-- **🏠 Overview** - Executive KPIs, risk concentration, temporal trends
-- **🔍 Monitor** - Real-time operational alerts and drift detection
-- **🚗 Drivers** - Driver risk profiles and suspicious patterns
-- **👥 Customers** - Customer behavior analysis and fraud indicators
-- **🗺️ Geographic Analysis** - Regional hotspots and distribution patterns
-- **📦 Product Analysis** - High-risk product categories and items
-- **🔬 Patterns** - Statistical fraud patterns and correlations
-- **📚 Methodology** - Model documentation and data quality metrics
-- **📊 Model Performance** - ML model monitoring and evaluation
+- **Overview** - Executive KPIs, risk concentration, temporal trends
+- **Monitor** - Real-time operational alerts and drift detection
+- **Drivers** - Driver risk profiles and suspicious patterns
+- **Customers** - Customer behavior analysis and fraud indicators
+- **Geographic Analysis** - Regional hotspots and distribution patterns
+- **Product Analysis** - High-risk product categories and items
+- **Patterns** - Statistical fraud patterns and correlations
+- **Methodology** - Model documentation and data quality metrics
+- **Model Performance** - ML model monitoring and evaluation
 
-### 🤖 Machine Learning Models
+### Machine Learning Models
 
 - **Isolation Forest** - Anomaly detection for outlier orders/entities
 - **K-Means & DBSCAN** - Clustering for pattern segmentation
@@ -58,7 +58,7 @@ A multi-page analytics platform with 9 specialized modules:
 - **Risk Scoring Engine** - Multi-factor risk quantification
 - **MLflow Integration** - Experiment tracking and model versioning
 
-### 📊 Analytics Capabilities
+### Analytics Capabilities
 
 - **Temporal Analysis** - Monthly, weekly, hourly fraud patterns
 - **Geographic Analysis** - City-level hotspot identification
@@ -68,11 +68,11 @@ A multi-page analytics platform with 9 specialized modules:
 
 ---
 
-## 🚀 Live Demo
+## Live Demo
 
-**🌐 [View Dashboard](https://your-app.streamlit.app)** *(Deploy link will be added after deployment)*
+**[View Dashboard](https://your-app.streamlit.app)** *(Deploy link will be added after deployment)*
 
-**🎥 Screenshots**
+**Screenshots**
 
 <div align="center">
   <i>Dashboard screenshots will be added after deployment</i>
@@ -80,7 +80,7 @@ A multi-page analytics platform with 9 specialized modules:
 
 ---
 
-## 🛠️ Tech Stack
+## Tech Stack
 
 ### **Core Technologies**
 - **Python 3.11+** - Primary language
@@ -107,17 +107,17 @@ A multi-page analytics platform with 9 specialized modules:
 
 ---
 
-## 📁 Project Structure
+## Project Structure
 
 ```
 walmart-delivery-fraud-detection/
 │
-├── 📊 dashboard/               # Streamlit multi-page app
+├── dashboard/                 # Streamlit multi-page app
 │   ├── app.py                 # Entry point
 │   ├── pages/                 # Dashboard modules (9 pages)
 │   └── styles/                # Custom CSS/theming
 │
-├── 🧠 src/                    # Core application code
+├── src/                       # Core application code
 │   ├── config/                # Settings and thresholds
 │   ├── database/              # ORM models and SQL schemas
 │   ├── data_source/           # CSV/Database abstraction layer
@@ -128,41 +128,41 @@ walmart-delivery-fraud-detection/
 │   ├── dashboard/             # Data cache and components
 │   └── utils/                 # Helper utilities
 │
-├── 📓 notebooks/              # Jupyter notebooks (7 EDA notebooks)
+├── notebooks/                 # Jupyter notebooks (7 EDA notebooks)
 │   ├── 01_eda_orders.ipynb
 │   ├── 02_eda_drivers_customers.ipynb
 │   ├── 03_fraud_analysis.ipynb
 │   └── ...
 │
-├── 🗂️ data/                   # CSV datasets (5 files)
+├── data/                      # CSV datasets (5 files)
 │   ├── orders.csv             # 960KB - Main transactions
 │   ├── customers_data.csv
 │   ├── drivers_data.csv
 │   ├── products_data.csv
 │   └── missing_items_data.csv
 │
-├── 🔧 scripts/                # CLI automation scripts
+├── scripts/                   # CLI automation scripts
 │   ├── setup_database.py      # Database schema setup
 │   ├── run_etl.py             # ETL pipeline runner
 │   ├── train_models.py        # Model training
 │   └── security_checks.sh     # Quality/security checks
 │
-└── 🧪 tests/                  # Unit tests
+└── tests/                     # Unit tests
     └── test_*.py
 ```
 
 ---
 
-## 🚀 Quick Start
+## Quick Start
 
-### 1️⃣ Clone Repository
+### 1. Clone Repository
 
 ```bash
 git clone https://github.com/Anotther/walmart-delivery-fraud-detection.git
 cd walmart-delivery-fraud-detection
 ```
 
-### 2️⃣ Setup Environment
+### 2. Setup Environment
 
 ```bash
 # Create virtual environment
@@ -173,7 +173,7 @@ source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
-### 3️⃣ Configure Data Source
+### 3. Configure Data Source
 
 **Option A: CSV Mode (Recommended for Quick Start)**
 
@@ -198,7 +198,7 @@ python scripts/setup_database.py
 python scripts/run_etl.py
 ```
 
-### 4️⃣ Run Dashboard
+### 4. Run Dashboard
 
 ```bash
 streamlit run dashboard/app.py
@@ -208,7 +208,7 @@ Open your browser at **http://localhost:8501**
 
 ---
 
-## 📊 Data Overview
+## Data Overview
 
 The project analyzes **5 interconnected datasets** from 2023 deliveries:
 
@@ -225,7 +225,7 @@ The project analyzes **5 interconnected datasets** from 2023 deliveries:
 
 ---
 
-## 🧪 Usage Examples
+## Usage Examples
 
 ### Train ML Models
 
@@ -270,32 +270,32 @@ bash scripts/security_checks.sh
 
 ---
 
-## 🎨 Dashboard Highlights
+## Dashboard Highlights
 
-### 📊 Overview Page
+### Overview Page
 - **Total orders, missing item rate, fraud cost estimation**
 - **Risk distribution** across drivers/customers
 - **Temporal trends** (monthly, weekly patterns)
 - **Geographic concentration** heatmap
 
-### 🔍 Monitor Page
+### Monitor Page
 - **Real-time alerts** for high-risk orders
 - **Operational drift** detection
 - **Recent suspicious activity** feed
 
-### 🚗 Drivers Analysis
+### Drivers Analysis
 - **Risk leaderboard** (top 20 high-risk drivers)
 - **Behavioral profiles** (missing rate, order volume)
 - **Suspicious patterns** (weekend spikes, collusion indicators)
 
-### 👥 Customers Analysis
+### Customers Analysis
 - **Customer risk scoring**
 - **Repeat offender** identification
 - **Customer-driver relationship** analysis
 
 ---
 
-## 📈 Key Insights & Results
+## Key Insights & Results
 
 *(Based on 2023 data analysis)*
 
@@ -306,7 +306,7 @@ bash scripts/security_checks.sh
 - **High-Risk Products**: Electronics and high-value items ($200+)
 - **Temporal Pattern**: 23% higher fraud on weekends
 
-### 🎯 Recommendations Implemented
+### Recommendations Implemented
 
 1. **Photo Verification** for high-value deliveries (>$150)
 2. **Driver Audits** for those exceeding 20% missing rate
@@ -317,17 +317,17 @@ bash scripts/security_checks.sh
 
 ---
 
-## 🔐 Security & Privacy
+## Security & Privacy
 
-- ✅ **PII Handling**: Customer/driver names are anonymized in public dataset
-- ✅ **SQL Injection Prevention**: Parameterized queries via SQLAlchemy ORM
-- ✅ **Input Validation**: All user inputs sanitized
-- ✅ **Security Scanning**: Bandit + pip-audit in CI pipeline
-- ✅ **Secure Secrets**: `.env` files excluded from version control
+- **PII Handling**: Customer/driver names are anonymized in public dataset
+- **SQL Injection Prevention**: Parameterized queries via SQLAlchemy ORM
+- **Input Validation**: All user inputs sanitized
+- **Security Scanning**: Bandit + pip-audit in CI pipeline
+- **Secure Secrets**: `.env` files excluded from version control
 
 ---
 
-## 🚢 Deployment
+## Deployment
 
 ### Streamlit Community Cloud
 
@@ -348,34 +348,22 @@ docker-compose up -d
 
 ---
 
-## 📚 Documentation
+## Documentation
 
 - **[DEPLOY.md](DEPLOY.md)** - Deployment guide for Streamlit Cloud
-- **[CLAUDE.md](CLAUDE.md)** - Project architecture and development guide
 - **[notebooks/](notebooks/)** - Detailed analysis documentation
 - **[dashboard/ANATOMY.md](dashboard/ANATOMY.md)** - Dashboard structure
 
 ---
 
-## 🤝 Contributing
 
-Contributions are welcome! Please:
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit changes (`git commit -m 'Add AmazingFeature'`)
-4. Push to branch (`git push origin feature/AmazingFeature`)
-5. Open a Pull Request
-
----
-
-## 📝 License
+## License
 
 This project is licensed under the **MIT License** - see [LICENSE](LICENSE) file for details.
 
 ---
 
-## 👤 Author
+## Author
 
 **Leonardo**
 
@@ -385,16 +373,16 @@ This project is licensed under the **MIT License** - see [LICENSE](LICENSE) file
 
 ---
 
-## 🙏 Acknowledgments
+## Acknowledgments
 
 - **Walmart** - Business case inspiration
-- **Streamlit** - Amazing dashboard framework
+- **Streamlit** - Dashboard framework
 - **scikit-learn** - ML toolkit
 - **Community** - Open source contributors
 
 ---
 
-## 📊 Project Status
+## Project Status
 
 ![Status](https://img.shields.io/badge/Status-Active-success.svg)
 ![Maintained](https://img.shields.io/badge/Maintained-Yes-green.svg)
@@ -407,7 +395,5 @@ This project is licensed under the **MIT License** - see [LICENSE](LICENSE) file
 <div align="center">
 
 **⭐ Star this repo if you find it useful!**
-
-Made with ❤️ and lots of ☕
 
 </div>

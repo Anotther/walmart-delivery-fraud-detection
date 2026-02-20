@@ -11,7 +11,7 @@ showSidebarNavigation = false
 showErrorDetails = "none"
 
 [server]
-enableCORS = false
+enableCORS = true
 enableXsrfProtection = true
 headless = true
 

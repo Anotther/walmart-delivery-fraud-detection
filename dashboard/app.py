@@ -6,14 +6,27 @@ import streamlit as st
 import sys
 from pathlib import Path
 
+# Configure logging before any imports
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+)
+logger = logging.getLogger(__name__)
+
 # Add src to path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from src.dashboard.components import load_css, render_sidebar
-from src.dashboard.data_cache import get_default_cache
-from src.config.risk_thresholds import RiskThresholds
-
-logger = logging.getLogger(__name__)
+try:
+    from src.dashboard.components import load_css, render_sidebar
+    from src.dashboard.data_cache import get_default_cache
+    from src.config.risk_thresholds import RiskThresholds
+    imports_successful = True
+except Exception as e:
+    logger.error(f"Failed to import modules: {e}", exc_info=True)
+    imports_successful = False
+    # Fallback values
+    class RiskThresholds:
+        ALERT = 75
 
 st.set_page_config(
     page_title="Walmart Fraud Detection",
@@ -23,8 +36,12 @@ st.set_page_config(
 )
 
 # Load Global CSS
-load_css()
-render_sidebar()
+if imports_successful:
+    try:
+        load_css()
+        render_sidebar()
+    except Exception as e:
+        logger.warning(f"Failed to load CSS or sidebar: {e}")
 
 @st.cache_data(ttl=900)
 def get_home_context():
@@ -37,6 +54,10 @@ def get_home_context():
         "alert_threshold": RiskThresholds.ALERT,
     }
 
+    if not imports_successful:
+        logger.warning("Skipping data load due to import failures")
+        return context
+
     try:
         cache = get_default_cache()
         metrics = cache.get_overview_metrics()
@@ -44,12 +65,19 @@ def get_home_context():
             f"{metrics['date_range_start']} to {metrics['date_range_end']}"
         )
     except Exception as exc:
-        logger.warning("Unable to load dashboard home context: %s", exc)
+        logger.warning(f"Unable to load dashboard home context: {exc}", exc_info=True)
 
     return context
 
 
-context = get_home_context()
+try:
+    context = get_home_context()
+except Exception as e:
+    logger.error(f"Failed to get home context: {e}", exc_info=True)
+    context = {
+        "data_period": None,
+        "alert_threshold": 75,
+    }
 
 st.markdown(
     """
