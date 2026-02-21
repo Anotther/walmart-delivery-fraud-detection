@@ -34,14 +34,13 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Load Global CSS (navegação padrão do Streamlit multi-page será usada)
+# Load Global CSS and render sidebar
 if imports_successful:
     try:
         load_css()
-        # Streamlit multi-page já mostra navegação automaticamente
-        # Não chamamos render_sidebar() para evitar duplicidade
+        render_sidebar()
     except Exception as e:
-        logger.warning(f"Failed to load CSS: {e}")
+        logger.warning(f"Failed to load CSS or sidebar: {e}")
 
 @st.cache_data(ttl=900)
 def get_home_context():

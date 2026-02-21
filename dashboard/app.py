@@ -34,13 +34,13 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Load Global CSS
+# Load Global CSS and render sidebar
 if imports_successful:
     try:
         load_css()
-        # Custom sidebar is rendered in individual pages
+        render_sidebar()
     except Exception as e:
-        logger.warning(f"Failed to load CSS: {e}")
+        logger.warning(f"Failed to load CSS or sidebar: {e}")
 
 @st.cache_data(ttl=900)
 def get_home_context():
