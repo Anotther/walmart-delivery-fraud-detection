@@ -142,12 +142,12 @@ def main():
     # ============================================================================
     # HEADER: Executive Context (Original Layout)
     # ============================================================================
-    st.markdown("### Executive Overview")
+    st.markdown("### Overview")
     st.markdown(f"""
     <div class="dashboard-header-row">
         <div>
             <h1 style="margin:0; font-size: 2.5rem;">Network Health Monitor</h1>
-            <p class="text-muted">Real-time analysis of delivery anomalies in Central Florida Region.</p>
+            <p class="text-muted">Analysis of delivery anomalies in Central Florida Region.</p>
         </div>
         <div class="scope-badge-container">
              <span class="badge badge-warning">High Alert Level</span>

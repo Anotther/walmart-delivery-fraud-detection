@@ -722,3 +722,31 @@ button[role="tab"][aria-selected="true"] {
 [data-dashboard-theme="dark"] [style*="border-color:#e2e8f0" i] {
   border-color: var(--border-light) !important;
 }
+
+/* ==========================================================================
+   Expander Component Styling
+   ========================================================================== */
+[data-testid="stExpander"] {
+  background-color: var(--bg-card) !important;
+  border: 1px solid var(--border-light) !important;
+  border-radius: var(--radius-md) !important;
+  margin-bottom: 1rem !important;
+}
+
+[data-testid="stExpander"] > div:first-child {
+  background-color: var(--surface-subtle) !important;
+  border-bottom: 1px solid var(--border-light) !important;
+  border-radius: var(--radius-md) var(--radius-md) 0 0 !important;
+  padding: 0.75rem 1rem !important;
+}
+
+[data-testid="stExpander"] button[data-testid="stExpanderToggleIcon"] {
+  color: var(--text-primary) !important;
+}
+
+[data-testid="stExpander"] [data-testid="stMarkdownContainer"],
+[data-testid="stExpander"] p,
+[data-testid="stExpander"] span,
+[data-testid="stExpander"] div {
+  color: var(--text-primary) !important;
+}

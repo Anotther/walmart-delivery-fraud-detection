@@ -96,7 +96,7 @@ def render_feature_drift_table(drift_df: pd.DataFrame) -> None:
         gap: 0.5rem;
         padding: 0.7rem 0.8rem;
         border-bottom: 1px solid var(--border-light);
-        background: #fafbfc;
+        background: var(--surface-subtle);
       }}
       .drift-card-title {{
         font-size: 0.9rem;
@@ -110,10 +110,10 @@ def render_feature_drift_table(drift_df: pd.DataFrame) -> None:
         width: 1rem;
         height: 1rem;
         border-radius: 999px;
-        border: 1px solid #cbd5e1;
-        color: #334155;
+        border: 1px solid var(--border-subtle);
+        color: var(--chart-text);
         font-size: 0.65rem;
-        background: #ffffff;
+        background: var(--bg-card);
         cursor: help;
         flex-shrink: 0;
       }}
@@ -130,16 +130,16 @@ def render_feature_drift_table(drift_df: pd.DataFrame) -> None:
         font-size: 0.72rem;
         text-transform: uppercase;
         letter-spacing: .03em;
-        color: #64748b;
+        color: var(--text-muted);
         font-weight: 700;
         padding: 0.55rem 0.6rem;
         border-bottom: 1px solid var(--border-light);
       }}
       .drift-table tbody td {{
         font-size: 0.84rem;
-        color: #0f172a;
+        color: var(--text-primary);
         padding: 0.52rem 0.6rem;
-        border-bottom: 1px solid #f1f5f9;
+        border-bottom: 1px solid var(--border-subtle);
         vertical-align: middle;
       }}
       .drift-table tbody tr:last-child td {{
@@ -156,14 +156,14 @@ def render_feature_drift_table(drift_df: pd.DataFrame) -> None:
         border: 1px solid transparent;
       }}
       .drift-chip-ok {{
-        color: #166534;
-        background: #dcfce7;
-        border-color: #bbf7d0;
+        color: var(--text-success);
+        background: var(--surface-success-soft);
+        border-color: var(--border-success);
       }}
       .drift-chip-alert {{
-        color: #991b1b;
-        background: #fee2e2;
-        border-color: #fecaca;
+        color: var(--text-danger);
+        background: var(--surface-danger-soft);
+        border-color: var(--border-danger);
       }}
     </style>
     <div class="drift-card">
@@ -347,9 +347,9 @@ def main():
         
         st.markdown(f"""
         <div style="background: {threat_color}15; border: 2px solid {threat_color}; border-radius: 8px; padding: 1rem; text-align: center;">
-            <div style="font-size: 0.75rem; text-transform: uppercase; color: #6b7280; font-weight: 600; margin-bottom: 0.5rem;">Threat Level</div>
+            <div style="font-size: 0.75rem; text-transform: uppercase; color: var(--text-muted); font-weight: 600; margin-bottom: 0.5rem;">Threat Level</div>
             <div style="font-size: 1.5rem; font-weight: 800; color: {threat_color}; margin-bottom: 0.25rem;">{threat_level}</div>
-            <div style="font-size: 0.8rem; color: #6b7280;">{sigma:+.2f}σ from baseline</div>
+            <div style="font-size: 0.8rem; color: var(--text-secondary);">{sigma:+.2f}σ from baseline</div>
         </div>
         """, unsafe_allow_html=True)
     
@@ -489,18 +489,18 @@ def main():
                     severity_icon = "🔴" if alert['risk_score'] >= 80 else "🟡"
                     
                     st.markdown(f"""
-                    <div style="background: #f9fafb; border-left: 3px solid {COLORS['critical'] if alert['risk_score'] >= 80 else COLORS['warning']}; padding: 0.75rem; margin-bottom: 0.5rem; border-radius: 4px;">
+                    <div style="background: var(--surface-subtle); border-left: 3px solid {COLORS['critical'] if alert['risk_score'] >= 80 else COLORS['warning']}; padding: 0.75rem; margin-bottom: 0.5rem; border-radius: 4px;">
                         <div style="display: flex; justify-content: space-between; align-items: center;">
                             <div style="flex: 1;">
-                                <span style="font-size: 0.75rem; color: #6b7280; font-weight: 600;">[{time_str}]</span>
-                                <span style="margin-left: 0.5rem; font-weight: 600; color: #111827;">{severity_icon} {alert['entity_type'].upper()}</span>
-                                <span style="margin-left: 0.25rem; color: #4b5563;">#{alert['entity_name']}</span>
+                                <span style="font-size: 0.75rem; color: var(--text-muted); font-weight: 600;">[{time_str}]</span>
+                                <span style="margin-left: 0.5rem; font-weight: 600; color: var(--text-primary);">{severity_icon} {alert['entity_type'].upper()}</span>
+                                <span style="margin-left: 0.25rem; color: var(--text-secondary);">#{alert['entity_name']}</span>
                             </div>
                             <div style="background: {COLORS['critical'] if alert['risk_score'] >= 80 else COLORS['warning']}20; color: {COLORS['critical'] if alert['risk_score'] >= 80 else COLORS['warning']}; padding: 2px 8px; border-radius: 4px; font-size: 0.75rem; font-weight: 700;">
                                 Risk: {alert['risk_score']:.0f}
                             </div>
                         </div>
-                        <div style="margin-top: 0.25rem; font-size: 0.85rem; color: #6b7280;">
+                        <div style="margin-top: 0.25rem; font-size: 0.85rem; color: var(--text-secondary);">
                             {alert['primary_metric']} | {alert['recommendation']}
                         </div>
                     </div>
@@ -519,9 +519,9 @@ def main():
             detection_date = escape(str(latest_pattern['detection_date']))
             pattern_content = (
                 f"<strong>{pattern_name}</strong><br>"
-                f"<span style=\"color: #6b7280; font-size: 0.9rem;\">Severity: {pattern_severity}</span><br><br>"
+                f"<span style=\"color: var(--text-secondary); font-size: 0.9rem;\">Severity: {pattern_severity}</span><br><br>"
                 f"{pattern_description}<br><br>"
-                f"<span style=\"font-size: 0.85rem; color: #6b7280;\">Detected: {detection_date}</span>"
+                f"<span style=\"font-size: 0.85rem; color: var(--text-secondary);\">Detected: {detection_date}</span>"
             )
             insight_card(
                 title="🔍 Latest Pattern Detected",
@@ -646,7 +646,7 @@ def main():
             ]
 
             for label, detail, is_active, tooltip in trigger_rows:
-                bg_color = "#FEE2E2" if is_active else "#ECFDF5"
+                bg_color = "var(--surface-danger-soft)" if is_active else "var(--surface-success-soft)"
                 border_color = COLORS['critical'] if is_active else COLORS['success']
                 icon = "⚠️" if is_active else "✅"
                 status_txt = "Triggered" if is_active else "Normal"
@@ -654,10 +654,10 @@ def main():
                     f"""
                     <div title="{escape(tooltip)}" style="background: {bg_color}; border: 1px solid {border_color}; border-radius: 8px; padding: 0.7rem; margin-bottom: 0.5rem;">
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.2rem;">
-                            <span style="font-weight: 700; font-size: 0.88rem; color: #111827;">{label}</span>
+                            <span style="font-weight: 700; font-size: 0.88rem; color: var(--text-primary);">{label}</span>
                             <span style="font-size: 0.78rem; font-weight: 700; color: {border_color};">{icon} {status_txt}</span>
                         </div>
-                        <div style="font-size: 0.82rem; color: #374151;">{detail}</div>
+                        <div style="font-size: 0.82rem; color: var(--text-secondary);">{detail}</div>
                     </div>
                     """,
                     unsafe_allow_html=True
