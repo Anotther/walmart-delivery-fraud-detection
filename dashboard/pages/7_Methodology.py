@@ -12,7 +12,7 @@ import plotly.express as px
 import streamlit as st
 
 # Add src to path
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
 from src.dashboard.components import COLORS, kpi_card, load_css, render_sidebar
 from src.dashboard.data_cache import get_default_cache

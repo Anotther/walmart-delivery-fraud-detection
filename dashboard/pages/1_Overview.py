@@ -9,8 +9,8 @@ import pandas as pd
 import numpy as np
 import plotly.express as px
 
-# Add src to path
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+# Add src to path - use resolve() to follow symlinks
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
 from src.dashboard.components import (
     load_css,

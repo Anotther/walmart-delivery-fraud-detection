@@ -76,3 +76,6 @@ htmlcov/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Symlink for local development (pages -> dashboard/pages)
+pages

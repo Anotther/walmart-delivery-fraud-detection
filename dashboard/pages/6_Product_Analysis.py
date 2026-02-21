@@ -16,7 +16,7 @@ import plotly.graph_objects as go
 import streamlit as st
 
 # Add src to path
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
 from src.config.viz_theme import CATEGORY_COLORS, PROJECT_THEME
 from src.dashboard.components import COLORS, insight_card, kpi_card, load_css, render_sidebar

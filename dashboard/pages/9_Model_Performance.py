@@ -9,7 +9,7 @@ import plotly.express as px
 import plotly.graph_objects as go
 
 # Add src to path
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent.parent))
 
 from src.dashboard.components import load_css, kpi_card, COLORS, render_sidebar, risk_badge
 from src.dashboard.data_cache import get_default_cache
