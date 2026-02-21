@@ -34,7 +34,7 @@ from src.dashboard.components import (
     COLORS
 )
 from src.dashboard.data_cache import get_default_cache
-from src.database.connection import load_drivers
+from src.data_source import get_data_source
 from src.features.driver_features import (
     create_driver_features,
     get_driver_risk_scores,
@@ -64,7 +64,10 @@ def load_base_data():
 
     # Load additional data needed for the page
     orders = cache.get_orders_with_features()
-    drivers = load_drivers()
+
+    # Use data source factory instead of direct database import
+    data_source = get_data_source()
+    drivers = data_source.load_drivers()
 
     return orders, drivers, drivers_summary
 
