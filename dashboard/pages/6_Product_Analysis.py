@@ -2132,6 +2132,7 @@ def main() -> None:
         else:
             if top_pattern["pattern_exposure_index"].nunique() <= 1:
                 st.caption("Pattern exposure index has low variance in this scope; bars may appear flat.")
+            mean_pattern = top_pattern["pattern_exposure_index"].mean()
             fig_pattern = px.bar(
                 top_pattern.sort_values("pattern_exposure_index"),
                 x="pattern_exposure_index",
@@ -2139,13 +2140,43 @@ def main() -> None:
                 orientation="h",
                 color="category",
                 color_discrete_map=category_color_map,
-                hover_data={"estimated_loss": ":.2f", "risk_score": ":.1f"},
+                hover_data={"estimated_loss": ":.2f", "risk_score": ":.1f", "times_reported_missing": True},
+            )
+            fig_pattern.update_traces(
+                texttemplate="%{x:.2f}",
+                textposition="outside",
             )
             fig_pattern.update_layout(
                 template="walmart_fraud",
-                margin=dict(t=15, r=8, b=8, l=8),
+                margin=dict(t=40, r=120, b=40, l=8),
                 xaxis_title="Pattern Exposure Index",
                 yaxis_title=None,
+                title=dict(
+                    text="Top 12 SKUs por Pattern Exposure Index",
+                    x=0.0,
+                    xanchor="left",
+                    font_size=13,
+                ),
+                shapes=[
+                    dict(
+                        type="line",
+                        x0=mean_pattern, x1=mean_pattern,
+                        y0=-0.5, y1=len(top_pattern) - 0.5,
+                        line=dict(color="gray", width=1, dash="dash"),
+                    )
+                ],
+                annotations=[
+                    dict(
+                        x=mean_pattern,
+                        y=len(top_pattern) - 0.5,
+                        xanchor="left",
+                        yanchor="bottom",
+                        text=f"Média: {mean_pattern:.2f}",
+                        showarrow=False,
+                        font=dict(size=10, color="gray"),
+                        xshift=5,
+                    )
+                ],
             )
             st.plotly_chart(fig_pattern, use_container_width=True)
 
@@ -2153,6 +2184,12 @@ def main() -> None:
         st.markdown(
             "<div class='product-subtitle'>Top-5 products by loss distribution across regions from Geographic dataset.</div>",
             unsafe_allow_html=True,
+        )
+        st.caption(
+            "Exibindo os **5 produtos** com maior número de ocorrências de itens reportados "
+            "como faltantes no escopo filtrado. Produtos sem nenhum evento de missing item "
+            "não aparecem neste gráfico. Para ver outros produtos, ajuste os filtros de "
+            "categoria ou período na barra lateral."
         )
 
         geo_base = cross_domain_facts if not cross_domain_facts.empty else scoped_facts
@@ -2191,7 +2228,7 @@ def main() -> None:
                 template="walmart_fraud",
                 margin=dict(t=15, r=8, b=8, l=8),
                 yaxis_title="Estimated Loss (USD)",
-                xaxis_title=None,
+                xaxis_title="Região",
             )
             st.plotly_chart(fig_geo, use_container_width=True)
 

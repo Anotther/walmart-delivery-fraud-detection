@@ -134,6 +134,7 @@ PRICE_SEGMENT_COLORS = {
 # =============================================================================
 
 CATEGORY_COLORS = {
+    # Legacy generic categories (kept for compatibility)
     'Electronics': '#0072B2',
     'Clothing': '#E69F00',
     'Food': '#009E73',
@@ -142,6 +143,17 @@ CATEGORY_COLORS = {
     'Sports': '#56B4E9',
     'Toys': '#F0E442',
     'Automotive': '#999999',
+    # Actual Walmart dataset categories (colorblind-safe, all distinct)
+    'Bakery': '#E69F00',       # Orange
+    'Beverages': '#56B4E9',    # Sky blue
+    'Dairy': '#009E73',        # Green
+    'Frozen': '#0072B2',       # Blue
+    'Household': '#D55E00',    # Vermillion
+    'Pantry': '#CC79A7',       # Pink
+    'Personal Care': '#F0E442', # Yellow
+    'Produce': '#2EC4B6',      # Teal (distinct from all above)
+    'Snacks': '#E84855',       # Red (distinct from all above)
+    'Supermarket': '#6A4C93',  # Purple (distinct from all above)
 }
 
 
