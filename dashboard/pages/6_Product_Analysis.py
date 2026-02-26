@@ -966,12 +966,12 @@ def build_automated_insights(
     if top_category_row is not None and total_loss > 0:
         share = _safe_ratio(float(top_category_row["estimated_loss"]), total_loss) * 100
         insights.append(
-            f"{top_category_row['category']} concentra {share:.1f}% da perda financeira estimada no escopo atual."
+            f"{top_category_row['category']} accounts for {share:.1f}% of estimated financial loss in current scope."
         )
 
     top_product = products_scope.iloc[0]
     insights.append(
-        f"SKU de maior risco: {top_product['product_name']} (score {top_product['risk_score']:.1f}, perda ${top_product['estimated_loss']:,.0f})."
+        f"Highest-risk SKU: {top_product['product_name']} (score {top_product['risk_score']:.1f}, loss ${top_product['estimated_loss']:,.0f})."
     )
 
     if not facts_df.empty and "spending_segment" in facts_df.columns:
@@ -991,7 +991,7 @@ def build_automated_insights(
                     seg_name = str(segment_top.index[0])
                     seg_share = _safe_ratio(float(segment_top.iloc[0]), float(segment_slice["missing_item_id"].count())) * 100
                     insights.append(
-                        f"Segmento de cliente mais exposto entre SKUs de alto risco: {seg_name} ({seg_share:.1f}% dos eventos)."
+                        f"Most exposed customer segment among high-risk SKUs: {seg_name} ({seg_share:.1f}% of events)."
                     )
 
     anomalies_total = int(temporal_summary.get("anomalies", {}).get("total", 0))
@@ -999,11 +999,11 @@ def build_automated_insights(
     if anomalies_total > 0:
         worst_day = temporal_summary.get("patterns", {}).get("worst_day", "N/A")
         insights.append(
-            f"Foram detectadas {anomalies_total} anomalias temporais; {worst_day} permanece como janela operacional critica."
+            f"Detected {anomalies_total} temporal anomalies; {worst_day} remains as critical operational window."
         )
 
     insights.append(
-        f"Perda media recente vs baseline historico: {baseline_delta_pct:+.1f}% (meses recentes contra historico anterior)."
+        f"Recent average loss vs historical baseline: {baseline_delta_pct:+.1f}% (recent months vs prior history)."
     )
 
     return insights[:5]
@@ -1030,22 +1030,22 @@ def build_recommendations(
 
     actions = [
         {
-            "action": "Reforcar prova de entrega nos 10 SKUs de maior risco",
+            "action": "Strengthen delivery proof for top 10 highest-risk SKUs",
             "impact_usd": total_high_risk_loss * 0.28,
             "effort": "Medium",
-            "rationale": "Mitiga concentracao de perda em SKUs de alto score e alta recorrencia.",
+            "rationale": "Mitigates loss concentration in high-score and high-recurrence SKUs.",
         },
         {
-            "action": f"Revisar processo operacional da categoria {category_name}",
+            "action": f"Review operational process for {category_name} category",
             "impact_usd": category_loss * 0.22,
             "effort": "Low",
-            "rationale": "Categoria lidera perda absoluta e risco composto no escopo analisado.",
+            "rationale": "Category leads absolute loss and composite risk in analyzed scope.",
         },
         {
-            "action": "Ativar vigilancia reforcada para clusters regionais + clientes de risco",
+            "action": "Activate enhanced surveillance for regional clusters + high-risk customers",
             "impact_usd": forecast_90 * 0.16,
             "effort": "High",
-            "rationale": "Alinha prevencao com previsao de perda 90 dias e sinais de anomalia temporal.",
+            "rationale": "Aligns prevention with 90-day loss forecast and temporal anomaly signals.",
         },
     ]
 
@@ -2186,10 +2186,9 @@ def main() -> None:
             unsafe_allow_html=True,
         )
         st.caption(
-            "Exibindo os **5 produtos** com maior número de ocorrências de itens reportados "
-            "como faltantes no escopo filtrado. Produtos sem nenhum evento de missing item "
-            "não aparecem neste gráfico. Para ver outros produtos, ajuste os filtros de "
-            "categoria ou período na barra lateral."
+            "Displaying the **5 products** with the highest number of reported missing items "
+            "in the filtered scope. Products with no missing item events do not appear in this chart. "
+            "To see other products, adjust the category or period filters in the sidebar."
         )
 
         geo_base = cross_domain_facts if not cross_domain_facts.empty else scoped_facts
@@ -2228,7 +2227,7 @@ def main() -> None:
                 template="walmart_fraud",
                 margin=dict(t=15, r=8, b=8, l=8),
                 yaxis_title="Estimated Loss (USD)",
-                xaxis_title="Região",
+                xaxis_title="Region",
             )
             st.plotly_chart(fig_geo, use_container_width=True)
 
@@ -2460,7 +2459,7 @@ def main() -> None:
                 control_col1, control_col2 = st.columns([1, 1])
                 with control_col1:
                     top_n = st.slider(
-                        "Top SKUs destacados",
+                        "Top featured SKUs",
                         min_value=5,
                         max_value=15,
                         value=8,
@@ -2608,7 +2607,7 @@ def main() -> None:
             unsafe_allow_html=True,
         )
         st.markdown(
-            "<div class='product-subtitle'>Compare custo de reposicao vs prevencao e priorize categorias com maior economia potencial.</div>",
+            "<div class='product-subtitle'>Compare replacement cost vs prevention and prioritize categories with highest potential savings.</div>",
             unsafe_allow_html=True,
         )
         if category_scope.empty:
@@ -2690,7 +2689,7 @@ def main() -> None:
             unsafe_allow_html=True,
         )
         st.markdown(
-            "<div class='product-subtitle'>Linha azul = historico acumulado (60 dias), vermelho = projecao com faixa min/max e baseline esperado.</div>",
+            "<div class='product-subtitle'>Blue line = cumulative historical (60 days), red = projection with min/max range and expected baseline.</div>",
             unsafe_allow_html=True,
         )
         daily_loss = (
