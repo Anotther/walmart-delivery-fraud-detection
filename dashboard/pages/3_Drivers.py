@@ -248,8 +248,8 @@ def compute_hypotheses(orders: pd.DataFrame, drivers: pd.DataFrame, driver_df: p
 def driver_radar_chart(driver_row: pd.Series, driver_df: pd.DataFrame) -> go.Figure:
     metrics = {
         "Missing Rate": "missing_rate",
-        "% Orders Missing": "pct_orders_with_missing",
-        "Items Missing": "total_items_missing",
+        "Orders w/ Missing": "pct_orders_with_missing",
+        "Missing Items": "total_items_missing",
         "Avg Order Value": "avg_order_value",
         "Orders Completed": "total_orders",
     }
@@ -288,11 +288,20 @@ def driver_radar_chart(driver_row: pd.Series, driver_df: pd.DataFrame) -> go.Fig
     ))
 
     fig.update_layout(
-        polar=dict(radialaxis=dict(visible=True, range=[0, 100])),
-        margin=dict(t=20, b=20, l=40, r=40),
+        polar=dict(
+            radialaxis=dict(visible=True, range=[0, 100]),
+            angularaxis=dict(rotation=90, direction="clockwise")
+        ),
+        margin=dict(t=60, b=60, l=60, r=60),
         font_family=COLORS['font_family'],
         paper_bgcolor=COLORS['paper_bg'],
-        showlegend=True
+        showlegend=True,
+        legend=dict(
+            yanchor="top",
+            y=0.98,
+            xanchor="left",
+            x=0.02
+        )
     )
     return fig
 
@@ -403,14 +412,15 @@ def build_monthly_trend_chart(monthly_df: pd.DataFrame, anomalies: dict, target_
 
 
 def compute_cluster_analysis(driver_df: pd.DataFrame) -> dict:
-    features = [
-        "missing_rate",
-        "pct_orders_with_missing",
-        "avg_order_value",
-        "total_orders",
-        "total_items_missing",
-        "trips"
-    ]
+    feature_labels = {
+        "missing_rate": "Missing Rate (%)",
+        "pct_orders_with_missing": "Orders w/ Missing (%)",
+        "avg_order_value": "Avg Order Value ($)",
+        "total_orders": "Total Orders",
+        "total_items_missing": "Missing Items Count",
+        "trips": "Total Trips"
+    }
+    features = list(feature_labels.keys())
     data = driver_df[features].replace([np.inf, -np.inf], np.nan).fillna(0)
 
     if len(data) < 6:
@@ -447,7 +457,7 @@ def compute_cluster_analysis(driver_df: pd.DataFrame) -> dict:
     variance = np.var(centers, axis=0)
     denom = (variance.max() - variance.min()) if variance.max() != variance.min() else 1
     importance = pd.DataFrame({
-        "feature": features,
+        "feature": [feature_labels[f] for f in features],
         "importance_score": (variance - variance.min()) / denom * 100
     }).sort_values("importance_score", ascending=False)
 
@@ -462,7 +472,14 @@ def compute_cluster_analysis(driver_df: pd.DataFrame) -> dict:
 
 
 def compute_regression_metrics(driver_df: pd.DataFrame) -> dict:
-    features = ["trips", "age", "total_orders", "avg_order_value", "pct_orders_with_missing"]
+    feature_labels = {
+        "trips": "Total Trips",
+        "age": "Driver Age",
+        "total_orders": "Total Orders",
+        "avg_order_value": "Avg Order Value ($)",
+        "pct_orders_with_missing": "Orders w/ Missing (%)"
+    }
+    features = list(feature_labels.keys())
     data = driver_df[features + ["missing_rate"]].replace([np.inf, -np.inf], np.nan).fillna(0)
 
     if len(data) < 10:
@@ -476,11 +493,14 @@ def compute_regression_metrics(driver_df: pd.DataFrame) -> dict:
     model.fit(X_train, y_train)
     preds = model.predict(X_test)
 
+    coef_df = pd.DataFrame({"feature": features, "coef": model.coef_}).sort_values("coef", ascending=False)
+    coef_df["feature"] = coef_df["feature"].map(feature_labels)
+
     return {
         "status": "ok",
         "r2": r2_score(y_test, preds),
         "rmse": float(np.sqrt(mean_squared_error(y_test, preds))),
-        "coef": pd.DataFrame({"feature": features, "coef": model.coef_}).sort_values("coef", ascending=False)
+        "coef": coef_df
     }
 
 
@@ -1493,7 +1513,9 @@ def main():
             st.markdown("**Drift by Feature**")
             drift_df = pd.DataFrame(perf["drift_analysis"])
             if not drift_df.empty:
-                st.dataframe(drift_df[["feature", "ks_stat", "p_value", "is_drifting"]], use_container_width=True)
+                drift_display = drift_df[["feature", "ks_stat", "p_value", "is_drifting"]].copy()
+                drift_display.columns = ["Feature", "KS Statistic", "P-Value", "Is Drifting"]
+                st.dataframe(drift_display, use_container_width=True)
         with perf_cols[1]:
             st.markdown("**Stability Proxy**")
             st.markdown(f"- Reference anomaly rate: {perf['performance']['reference_anomaly_rate']:.2f}%")
@@ -1551,7 +1573,12 @@ def main():
         outliers = comparison_df[comparison_df["is_outlier"]]
         st.markdown(f"Drivers outliers: {len(outliers)}")
         st.caption("Outliers are defined as missing rate > mean + 2 standard deviations.")
-        st.dataframe(outliers[["driver_id", "driver_name", "missing_rate", "total_orders"]].head(20), use_container_width=True)
+        if not outliers.empty:
+            outliers_display = outliers[["driver_id", "driver_name", "missing_rate", "total_orders"]].head(20).copy()
+            outliers_display.columns = ["Driver ID", "Driver Name", "Missing Rate (%)", "Total Orders"]
+            st.dataframe(outliers_display, use_container_width=True)
+        else:
+            st.info("No outliers detected in current scope.")
 
     # Business stakeholders
     with tabs[3]:
@@ -1575,9 +1602,16 @@ def main():
             y="missing_rate",
             title="Missing Rate by Region",
             color="missing_rate",
-            color_continuous_scale="Reds"
+            color_continuous_scale="Reds",
+            labels={"region": "Region", "missing_rate": "Missing Rate (%)"}
         )
-        fig_region.update_layout(plot_bgcolor=COLORS['plot_bg'], paper_bgcolor=COLORS['paper_bg'], font_family=COLORS['font_family'])
+        fig_region.update_layout(
+            plot_bgcolor=COLORS['plot_bg'],
+            paper_bgcolor=COLORS['paper_bg'],
+            font_family=COLORS['font_family'],
+            xaxis_title="Region",
+            yaxis_title="Missing Rate (%)"
+        )
         st.caption("Tooltip: regional benchmark for operational prioritization.")
         st.plotly_chart(fig_region, use_container_width=True, key="drivers_region_benchmark")
 
@@ -1586,13 +1620,18 @@ def main():
             "driver_id": "count",
             "missing_value": "sum",
             "missing_rate": "mean"
-        }).reset_index().rename(columns={"driver_id": "drivers"})
+        }).reset_index().rename(columns={"driver_id": "Drivers", "experience_level": "Experience Level"})
         total_missing_value = segment_exp["missing_value"].sum()
         segment_exp["missing_share"] = (
             segment_exp["missing_value"] / total_missing_value * 100 if total_missing_value > 0 else 0
         )
         segment_exp = segment_exp.sort_values("missing_share", ascending=False)
-        st.dataframe(segment_exp, use_container_width=True)
+        segment_exp_display = segment_exp.rename(columns={
+            "missing_value": "Missing Value (USD)",
+            "missing_rate": "Missing Rate (%)",
+            "missing_share": "Share of Total (%)"
+        })
+        st.dataframe(segment_exp_display, use_container_width=True)
 
         st.markdown("**Impact Translation**")
         st.markdown(
@@ -1605,6 +1644,10 @@ def main():
     # Advanced Analytics (Load on Demand)
     # ------------------------------------------------------------------
     st.markdown("#### Advanced Analytics (Load-on-Demand)")
+    st.caption(
+        "Advanced clustering and regression analyses loaded on demand. "
+        "KPIs include Silhouette score (cluster quality), R² (explained variance), and RMSE (prediction error)."
+    )
     if st.toggle("Load advanced analytics"):
         cluster = compute_cluster_analysis(driver_snapshot)
         regression = compute_regression_metrics(driver_snapshot)
@@ -1642,10 +1685,22 @@ def main():
                     y="feature",
                     orientation="h",
                     title="Feature Importance (Cluster Variance)",
-                    color_discrete_sequence=[COLORS["walmart_blue_light"]]
+                    color_discrete_sequence=[COLORS["walmart_blue_light"]],
+                    labels={"importance_score": "Importance Score", "feature": "Feature"}
                 )
-                importance_fig.update_layout(plot_bgcolor=COLORS['plot_bg'], paper_bgcolor=COLORS['paper_bg'], font_family=COLORS['font_family'])
-                st.caption("Tooltip: relative importance by cluster separation.")
+                importance_fig.update_layout(
+                    plot_bgcolor=COLORS['plot_bg'],
+                    paper_bgcolor=COLORS['paper_bg'],
+                    font_family=COLORS['font_family'],
+                    xaxis_title="Importance Score",
+                    yaxis_title="Feature",
+                    height=300,
+                    margin=dict(t=40, r=20, b=40, l=120)
+                )
+                st.caption(
+                    "Measures how much each feature contributes to separating driver clusters. "
+                    "Higher values indicate the feature is more important for distinguishing between risk groups."
+                )
                 st.plotly_chart(importance_fig, use_container_width=True, key="drivers_cluster_importance")
             else:
                 st.info("Insufficient data for clustering.")
