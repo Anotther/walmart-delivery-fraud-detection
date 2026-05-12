@@ -7,10 +7,11 @@
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-14+-336791.svg)
 ![scikit-learn](https://img.shields.io/badge/scikit--learn-1.5.2-F7931E.svg)
 ![License](https://img.shields.io/badge/License-MIT-green.svg)
+[![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://walmart-delivery-fraud-detection.streamlit.app/)
 
 **Advanced ML-powered fraud detection system for Walmart e-commerce deliveries**
 
-[Live Demo](#) | [Documentation](DEPLOY.md) | [Report Issue](https://github.com/Anotther/walmart-delivery-fraud-detection/issues)
+[Live Demo](https://walmart-delivery-fraud-detection.streamlit.app/) | [Documentation](DEPLOY.md) | [Report Issue](https://github.com/Anotther/walmart-delivery-fraud-detection/issues)
 
 </div>
 
@@ -70,12 +71,16 @@ A multi-page analytics platform with 9 specialized modules:
 
 ## Live Demo
 
-**[View Dashboard](https://your-app.streamlit.app)** *(Deploy link will be added after deployment)*
-
-**Screenshots**
+**[View Dashboard →](https://walmart-delivery-fraud-detection.streamlit.app/)**
 
 <div align="center">
-  <i>Dashboard screenshots will be added after deployment</i>
+
+[![Open in Streamlit](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://walmart-delivery-fraud-detection.streamlit.app/)
+
+![Dashboard Preview](docs/assets/dashboard-preview.gif)
+
+*Multi-page dashboard: Home · Overview · Monitor · Drivers · Customers · Geographic · Product Analysis · Patterns · Model Performance*
+
 </div>
 
 ---
