@@ -361,44 +361,14 @@ docker-compose up -d
 
 ---
 
-
-## License
-
-This project is licensed under the **MIT License** - see [LICENSE](LICENSE) file for details.
-
----
-
-## Author
-
-**Leonardo**
-
-- GitHub: [@Anotther](https://github.com/Anotther)
-- LinkedIn: [Your LinkedIn](#) *(Add your link)*
-- Portfolio: [Your Portfolio](#) *(Add your link)*
-
----
-
 ## Acknowledgments
 
 - **Walmart** - Business case inspiration
 - **Streamlit** - Dashboard framework
 - **scikit-learn** - ML toolkit
-- **Community** - Open source contributors
 
 ---
 
-## Project Status
+## License
 
-![Status](https://img.shields.io/badge/Status-Active-success.svg)
-![Maintained](https://img.shields.io/badge/Maintained-Yes-green.svg)
-
-**Current Version**: 1.0.0
-**Last Updated**: February 2026
-
----
-
-<div align="center">
-
-**⭐ Star this repo if you find it useful!**
-
-</div>
+This project is licensed under the **MIT License** - see [LICENSE](LICENSE) file for details.
