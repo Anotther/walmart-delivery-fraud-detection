@@ -11,7 +11,7 @@
 
 **Advanced ML-powered fraud detection system for Walmart e-commerce deliveries**
 
-[Live Demo](https://walmart-delivery-fraud-detection.streamlit.app/) | [Documentation](DEPLOY.md) | [Report Issue](https://github.com/Anotther/walmart-delivery-fraud-detection/issues)
+[Live Demo](https://walmart-delivery-fraud-detection.streamlit.app/) | [Executive Presentation](https://anotther.github.io/walmart-delivery-fraud-detection/presentation.html) | [Documentation](DEPLOY.md) | [Report Issue](https://github.com/Anotther/walmart-delivery-fraud-detection/issues)
 
 </div>
 
@@ -72,6 +72,8 @@ A multi-page analytics platform with 9 specialized modules:
 ## Live Demo
 
 **[View Dashboard →](https://walmart-delivery-fraud-detection.streamlit.app/)**
+
+**[View Executive Presentation →](https://anotther.github.io/walmart-delivery-fraud-detection/presentation.html)**
 
 <div align="center">
 

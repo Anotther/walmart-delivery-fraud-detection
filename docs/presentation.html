@@ -1,0 +1,802 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Itens Faltantes em Entregas — 2023</title>
+<style>
+
+/* ── reset ──────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { height: 100%; overflow: hidden; }
+
+/* ── base ───────────────────────────────────────────────── */
+body {
+  background-color: #E9EFF8;
+  background-image: url("data:image/svg+xml,%3Csvg width='28' height='28' xmlns='http://www.w3.org/2000/svg'%3E%3Ccircle cx='14' cy='14' r='1.2' fill='%23004C91' fill-opacity='0.15'/%3E%3C/svg%3E");
+  font-family: Inter, system-ui, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif;
+  font-size: 18px;
+  line-height: 1.65;
+  color: #111827;
+}
+
+/* ── slide engine ───────────────────────────────────────── */
+#deck { position: relative; width: 100vw; height: 100vh; }
+
+.slide {
+  display: none;
+  position: absolute;
+  inset: 0;
+  flex-direction: column;
+  align-items: center;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+  user-select: none;
+}
+.slide.active { display: flex; }
+
+/* Top gradient bar — all slides */
+.slide::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 4px;
+  background: linear-gradient(to right, #004C91 0%, #0071CE 55%, #FFC220 100%);
+  z-index: 1;
+}
+
+/* Left accent stripe — content slides */
+.slide:not(:first-child) { box-shadow: inset 5px 0 0 #004C91; }
+
+/* Cover: decorative circle bottom-right */
+.slide:first-child::after {
+  content: '';
+  position: absolute;
+  bottom: -90px; right: -90px;
+  width: 520px; height: 520px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(0,76,145,0.13) 0%, rgba(0,76,145,0.04) 45%, transparent 70%);
+  pointer-events: none;
+}
+
+.spacer { flex: 1; min-height: 0; }
+
+/* ── content wrapper ────────────────────────────────────── */
+.content {
+  width: min(1280px, calc(100vw - 80px));
+  padding: 0;
+}
+
+/* ── footnote slot ──────────────────────────────────────── */
+.fn {
+  height: 44px;
+  width: min(1280px, calc(100vw - 80px));
+  padding: 6px 0 0;
+  font-size: 0.7rem;
+  line-height: 1.45;
+  color: #9CA3AF;
+}
+
+/* ── counter ────────────────────────────────────────────── */
+#counter {
+  position: fixed;
+  bottom: 18px; right: 26px;
+  font-size: 0.7rem;
+  color: #9CA3AF;
+  letter-spacing: 0.08em;
+  pointer-events: none;
+  user-select: none;
+}
+
+/* ══ typography ══════════════════════════════════════════ */
+
+.cover-title {
+  font-size: 3.2rem;
+  font-weight: 800;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
+  color: #111827;
+  margin-bottom: 1rem;
+}
+.cover-sub {
+  font-size: 1.05rem;
+  color: #4B5563;
+  letter-spacing: 0.01em;
+}
+.slide:first-child .cover-sub::after {
+  content: '';
+  display: block;
+  width: 56px;
+  height: 4px;
+  background: #FFC220;
+  margin: 1.6rem auto 0;
+  border-radius: 2px;
+}
+
+.slide-label {
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: #004C91;
+  margin-bottom: 1.1rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 2px solid #FFC220;
+  display: inline-block;
+}
+
+.big-stat {
+  font-size: 7.5rem;
+  font-weight: 800;
+  line-height: 0.9;
+  color: #004C91;
+  margin-bottom: 0.5rem;
+  letter-spacing: -0.04em;
+}
+
+.lead {
+  font-size: 1.15rem;
+  line-height: 1.55;
+  color: #1F2937;
+  margin-bottom: 0.85rem;
+}
+
+p { font-size: 0.95rem; color: #374151; line-height: 1.65; margin-bottom: 0.75rem; }
+p:last-of-type { margin-bottom: 0; }
+
+b, strong { font-weight: 600; color: #111827; }
+.muted { color: #6B7280; }
+.accent { color: #004C91; font-weight: 700; }
+.red    { color: #EF4444; font-weight: 700; }
+
+/* ── divider ────────────────────────────────────────────── */
+hr { border: none; border-top: 1px solid #C9D5E8; margin: 1.1rem 0; }
+
+/* ── stats row ──────────────────────────────────────────── */
+.stats {
+  display: flex;
+  gap: 1.25rem;
+  margin: 0.9rem 0 1.1rem;
+}
+.stats > div {
+  flex: 1;
+  background: rgba(255,255,255,0.82);
+  border-radius: 8px;
+  padding: 1rem 1.3rem;
+  border-top: 3px solid #004C91;
+  box-shadow: 0 1px 6px rgba(0,76,145,0.1);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  justify-content: center;
+}
+.stat-val {
+  font-size: 2.8rem;
+  font-weight: 800;
+  color: #004C91;
+  line-height: 1;
+  letter-spacing: -0.03em;
+}
+.stat-sub {
+  font-size: 0.74rem;
+  color: #6B7280;
+  margin-top: 0.3rem;
+  line-height: 1.4;
+}
+
+/* ── table ──────────────────────────────────────────────── */
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.91rem;
+  margin-top: 0.4rem;
+}
+
+th {
+  text-align: left;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: #fff;
+  background: #004C91;
+  border-bottom: none;
+  padding: 9px 14px;
+}
+th:first-child { border-radius: 6px 0 0 0; }
+th:last-child  { border-radius: 0 6px 0 0; }
+
+td {
+  padding: 9px 14px;
+  border-bottom: 1px solid #DCE5F0;
+  color: #374151;
+  vertical-align: top;
+  background: rgba(255,255,255,0.75);
+}
+tr:nth-child(even) td { background: rgba(0,76,145,0.05); }
+tr:last-child td { border-bottom: none; }
+tr:last-child td:first-child { border-radius: 0 0 0 6px; }
+tr:last-child td:last-child  { border-radius: 0 0 6px 0; }
+
+/* ── numbered list ──────────────────────────────────────── */
+ol.clean { list-style: none; margin-top: 0.75rem; }
+ol.clean li {
+  display: flex;
+  gap: 1rem;
+  font-size: 0.94rem;
+  color: #374151;
+  line-height: 1.6;
+  margin-bottom: 0.6rem;
+  background: rgba(255,255,255,0.75);
+  border-radius: 6px;
+  padding: 0.75rem 1rem;
+  border-left: 3px solid #004C91;
+  box-shadow: 0 1px 3px rgba(0,76,145,0.06);
+}
+ol.clean li:last-child { margin-bottom: 0; }
+ol.clean li .n {
+  font-weight: 800;
+  font-size: 0.82rem;
+  color: #004C91;
+  min-width: 1.4rem;
+  flex-shrink: 0;
+  padding-top: 0.1rem;
+}
+
+/* ── toc grid ───────────────────────────────────────────── */
+.toc {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem 2rem;
+  margin-top: 0.5rem;
+}
+.toc-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  font-size: 0.95rem;
+  color: #374151;
+  padding: 0.5rem 0.75rem;
+  background: rgba(255,255,255,0.65);
+  border-radius: 6px;
+  box-shadow: 0 1px 3px rgba(0,76,145,0.06);
+}
+.toc-n {
+  font-size: 0.62rem;
+  font-weight: 800;
+  color: #fff;
+  background: #004C91;
+  min-width: 1.45rem;
+  height: 1.45rem;
+  border-radius: 3px;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ── action blocks ──────────────────────────────────────── */
+.action {
+  background: rgba(255,255,255,0.78);
+  border-left: 3px solid #004C91;
+  border-radius: 0 8px 8px 0;
+  padding: 0.75rem 1.1rem;
+  margin-bottom: 0.65rem;
+  box-shadow: 0 1px 4px rgba(0,76,145,0.08);
+}
+.action:last-of-type { margin-bottom: 0; }
+.action-lbl {
+  font-size: 0.67rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: #004C91;
+  margin-bottom: 0.18rem;
+}
+.action-txt {
+  font-size: 0.91rem;
+  color: #374151;
+  line-height: 1.6;
+}
+
+/* ── SVG chart ──────────────────────────────────────────── */
+.chart { margin-top: 0.75rem; }
+
+/* ── metric cards (slide 4) ─────────────────────────────── */
+.metric-cards {
+  display: flex;
+  gap: 1rem;
+  margin: 1.2rem 0 1rem;
+}
+.metric-card {
+  flex: 1;
+  background: #fff;
+  border-radius: 10px;
+  padding: 1.2rem 1.1rem;
+  border-top: 4px solid #004C91;
+  box-shadow: 0 2px 8px rgba(0,76,145,0.1);
+  position: relative;
+}
+.mc-val {
+  font-size: 2.6rem;
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: -0.03em;
+  margin-bottom: 0.4rem;
+  color: #004C91;
+}
+.mc-lbl {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #374151;
+  margin-bottom: 0.3rem;
+}
+.mc-ctx {
+  font-size: 0.76rem;
+  color: #6B7280;
+  line-height: 1.45;
+}
+.mc-badge {
+  position: absolute;
+  top: 0.65rem;
+  right: 0.75rem;
+  font-size: 0.58rem;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 0.2rem 0.5rem;
+  border-radius: 99px;
+}
+
+/* ── region two-column (slide 6) ────────────────────────── */
+.region-grid {
+  display: grid;
+  grid-template-columns: 58fr 42fr;
+  gap: 2rem;
+  margin-top: 0.6rem;
+  align-items: start;
+}
+.region-insights .action {
+  padding: 0.6rem 0.9rem;
+}
+.region-insights .action-lbl { font-size: 0.62rem; }
+.region-insights .action-txt { font-size: 0.84rem; }
+
+/* ── alert cards (slide 7) ──────────────────────────────── */
+.alert-card {
+  display: flex;
+  align-items: center;
+  gap: 1.2rem;
+  background: #fff;
+  border-radius: 10px;
+  padding: 1rem 1.4rem;
+  margin-bottom: 0.7rem;
+  box-shadow: 0 2px 8px rgba(0,76,145,0.08);
+}
+.alert-card:last-of-type { margin-bottom: 0; }
+.alert-icon {
+  font-size: 1.5rem;
+  flex-shrink: 0;
+  width: 2.2rem;
+  text-align: center;
+}
+.alert-body { flex: 1; min-width: 0; }
+.alert-title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: #111827;
+  margin-bottom: 0.2rem;
+}
+.alert-desc {
+  font-size: 0.83rem;
+  color: #4B5563;
+  line-height: 1.55;
+}
+.alert-badge {
+  font-size: 0.58rem;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  padding: 0.28rem 0.7rem;
+  border-radius: 99px;
+  flex-shrink: 0;
+  margin-left: 0.5rem;
+}
+.badge-high { background: #FEE2E2; color: #DC2626; }
+.badge-med  { background: #FEF3C7; color: #D97706; }
+
+</style>
+</head>
+<body>
+<div id="deck">
+
+
+<!-- ═══════════════════════════════════════════════════════
+     01  CAPA
+════════════════════════════════════════════════════════ -->
+<div class="slide active">
+  <div class="spacer"></div>
+  <div class="content" style="text-align:center">
+    <div class="cover-title">Ocorrências de Itens Faltantes<br>em Entregas — Central Florida 2023</div>
+    <div class="cover-sub">10.000 pedidos analisados &nbsp;·&nbsp; Central Florida &nbsp;·&nbsp; Jan–Dez 2023</div>
+  </div>
+  <div class="spacer"></div>
+  <div class="fn"></div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════
+     02  SUMÁRIO
+════════════════════════════════════════════════════════ -->
+<div class="slide">
+  <div class="spacer"></div>
+  <div class="content">
+    <div class="slide-label">Agenda</div>
+    <div class="toc">
+      <div class="toc-item"><span class="toc-n">01</span>Visão geral das ocorrências</div>
+      <div class="toc-item"><span class="toc-n">02</span>Distribuição entre os motoristas</div>
+      <div class="toc-item"><span class="toc-n">03</span>Motoristas e clientes em destaque</div>
+      <div class="toc-item"><span class="toc-n">04</span>Taxa por cidade de entrega</div>
+      <div class="toc-item"><span class="toc-n">05</span>Pontos cegos do processo atual</div>
+      <div class="toc-item"><span class="toc-n">06</span>Ações recomendadas</div>
+      <div class="toc-item"><span class="toc-n">07</span>Projeção de recuperação</div>
+      <div class="toc-item"><span class="toc-n">08</span>Plano de ação</div>
+    </div>
+  </div>
+  <div class="spacer"></div>
+  <div class="fn"></div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════
+     03  O PROBLEMA EM NÚMEROS
+════════════════════════════════════════════════════════ -->
+<div class="slide">
+  <div class="spacer"></div>
+  <div class="content">
+    <div class="slide-label">01 · Visão geral das ocorrências</div>
+    <div class="big-stat">15%</div>
+    <p class="lead">dos pedidos de 2023 tiveram pelo menos um item reportado como faltante — <span class="muted">1 em cada 7 entregas saiu errada do ponto de vista do cliente.</span></p>
+    <hr>
+    <p>1.502 pedidos afetados. 1.657 itens que saíram do CD, foram carregados no veículo e não chegaram ao cliente. Perda estimada: <strong>$46.396 no ano.</strong></p>
+    <p class="muted" style="font-size:0.88rem;margin-top:0.5rem">Esse número não aparece em nenhum relatório diário — ele aparece fragmentado, uma reclamação de cada vez.</p>
+  </div>
+  <div class="spacer"></div>
+  <div class="fn">* O setor de e-commerce opera tipicamente com 2–5% de taxa de itens faltantes.</div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════
+     04  O PADRÃO NÃO É ACIDENTE
+════════════════════════════════════════════════════════ -->
+<div class="slide">
+  <div class="spacer"></div>
+  <div class="content">
+    <div class="slide-label">02 · Distribuição entre os motoristas</div>
+    <p>Se fosse erro operacional — item esquecido na gôndola, troca de embalagem, erro de picking — os números seriam uniformes entre todos os motoristas.</p>
+    <p>Não é o que os dados mostram. Na frota de 1.247 motoristas ativos:</p>
+    <div class="metric-cards">
+      <div class="metric-card" style="border-top-color:#10B981">
+        <div class="mc-val" style="color:#10B981">0,00%</div>
+        <div class="mc-lbl">Mediana da frota</div>
+        <div class="mc-ctx">A maior parte dos motoristas não teve nenhuma ocorrência no ano inteiro</div>
+      </div>
+      <div class="metric-card" style="border-top-color:#004C91">
+        <div class="mc-val" style="color:#004C91">1,22%</div>
+        <div class="mc-lbl">Média geral</div>
+        <div class="mc-ctx">Puxada para cima pelos casos extremos — sem eles seria próxima de zero</div>
+      </div>
+      <div class="metric-card" style="border-top-color:#F59E0B">
+        <div class="mc-badge" style="background:#FEF3C7;color:#D97706">Atenção</div>
+        <div class="mc-val" style="color:#D97706">4,82%</div>
+        <div class="mc-lbl">Limite de investigação</div>
+        <div class="mc-ctx">Média + 2σ — motoristas acima desse ponto saem do padrão estatístico</div>
+      </div>
+      <div class="metric-card" style="border-top-color:#EF4444">
+        <div class="mc-badge" style="background:#FEE2E2;color:#DC2626">Máximo</div>
+        <div class="mc-val" style="color:#EF4444">7,46%</div>
+        <div class="mc-lbl">Máximo individual</div>
+        <div class="mc-ctx">1 em cada 13 entregas com item faltante — toda semana, o ano inteiro</div>
+      </div>
+    </div>
+    <p class="muted" style="font-size:0.88rem">A maioria da frota está em zero. Isso não é distribuição de erro operacional. É concentração.</p>
+  </div>
+  <div class="spacer"></div>
+  <div class="fn">* Na prática: um motorista com 7,46% deixa item faltante toda semana em uma rota de 5 entregas/dia.</div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════
+     05  MOTORISTAS E CLIENTES
+════════════════════════════════════════════════════════ -->
+<div class="slide">
+  <div class="spacer"></div>
+  <div class="content">
+    <div class="slide-label">03 · Motoristas e clientes em destaque</div>
+    <div class="stats">
+      <div>
+        <div class="stat-val">7,46%</div>
+        <div class="stat-sub">máximo individual — motoristas<br><span style="color:#9CA3AF">média da frota: 1,22%</span></div>
+      </div>
+      <div>
+        <div class="stat-val">13,64%</div>
+        <div class="stat-sub">máximo individual — clientes<br><span style="color:#9CA3AF">média da base: 1,71%</span></div>
+      </div>
+    </div>
+    <hr>
+    <p><strong>O perfil típico de alto risco não é o novato.</strong> Os casos mais graves são motoristas com volume razoável de entregas — o suficiente para o padrão se consolidar sem chamar atenção no volume absoluto.</p>
+    <p style="margin-top:0.75rem">Do lado dos clientes, os itens mais reclamados são os de maior valor — o que não bate com distribuição aleatória de esquecimento. E há pares motorista-cliente onde, em <em>toda</em> entrega que esse motorista fez para esse cliente, tinha item faltante.</p>
+  </div>
+  <div class="spacer"></div>
+  <div class="fn"></div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════
+     06  DIFERENÇA ENTRE REGIÕES
+════════════════════════════════════════════════════════ -->
+<div class="slide">
+  <div class="spacer"></div>
+  <div class="content">
+    <div class="slide-label">04 · Taxa por cidade de entrega</div>
+    <div class="region-grid">
+      <div>
+        <!--
+          scale: 300px = 1,76%  →  factor = 300 / 1.76 = 170.45 px per %
+          Altamonte 1,76%→300px  Apopka 1,73%→295px  Winter Park 1,65%→281px
+          Clermont 1,60%→273px  Sanford 1,54%→263px  Kissimmee 1,50%→256px
+          viewBox: 0 0 520 275  (row height 46px, 6 rows)
+        -->
+        <svg viewBox="0 0 520 275" xmlns="http://www.w3.org/2000/svg"
+             style="width:100%;display:block"
+             role="img" aria-label="Taxa de itens faltantes por região">
+          <!-- row 1 — Altamonte Springs 1,76% -->
+          <text x="155" y="32" text-anchor="end"
+                font-size="13" fill="#374151" font-family="system-ui,sans-serif">Altamonte Springs</text>
+          <rect x="165" y="19" width="300" height="22" rx="3" fill="#EF4444"/>
+          <text x="472" y="33" font-size="12" fill="#EF4444"
+                font-weight="700" font-family="system-ui,sans-serif">1,76%</text>
+
+          <!-- row 2 — Apopka 1,73% -->
+          <text x="155" y="78" text-anchor="end"
+                font-size="13" fill="#374151" font-family="system-ui,sans-serif">Apopka</text>
+          <rect x="165" y="65" width="295" height="22" rx="3" fill="#F87171"/>
+          <text x="467" y="79" font-size="12" fill="#F87171"
+                font-weight="600" font-family="system-ui,sans-serif">1,73%</text>
+
+          <!-- row 3 — Winter Park 1,65% -->
+          <text x="155" y="124" text-anchor="end"
+                font-size="13" fill="#374151" font-family="system-ui,sans-serif">Winter Park</text>
+          <rect x="165" y="111" width="281" height="22" rx="3" fill="#9CA3AF"/>
+          <text x="453" y="125" font-size="12" fill="#6B7280"
+                font-family="system-ui,sans-serif">1,65%</text>
+
+          <!-- row 4 — Clermont 1,60% -->
+          <text x="155" y="170" text-anchor="end"
+                font-size="13" fill="#374151" font-family="system-ui,sans-serif">Clermont</text>
+          <rect x="165" y="157" width="273" height="22" rx="3" fill="#D1D5DB"/>
+          <text x="445" y="171" font-size="12" fill="#6B7280"
+                font-family="system-ui,sans-serif">1,60%</text>
+
+          <!-- row 5 — Sanford 1,54% -->
+          <text x="155" y="216" text-anchor="end"
+                font-size="13" fill="#374151" font-family="system-ui,sans-serif">Sanford</text>
+          <rect x="165" y="203" width="263" height="22" rx="3" fill="#D1D5DB"/>
+          <text x="435" y="217" font-size="12" fill="#6B7280"
+                font-family="system-ui,sans-serif">1,54%</text>
+
+          <!-- row 6 — Kissimmee 1,50% -->
+          <text x="155" y="262" text-anchor="end"
+                font-size="13" fill="#374151" font-family="system-ui,sans-serif">Kissimmee</text>
+          <rect x="165" y="249" width="256" height="22" rx="3" fill="#D1D5DB"/>
+          <text x="428" y="263" font-size="12" fill="#6B7280"
+                font-family="system-ui,sans-serif">1,50%</text>
+        </svg>
+      </div>
+      <div class="region-insights">
+        <div class="action">
+          <div class="action-lbl">Diferença entre as pontas</div>
+          <div class="action-txt">Altamonte Springs registra <strong>17% mais ocorrências</strong> do que Kissimmee — com volume e perfil de cliente praticamente idênticos (~1.450 pedidos/região).</div>
+        </div>
+        <div class="action" style="margin-top:0.5rem">
+          <div class="action-lbl">O produto não explica</div>
+          <div class="action-txt">Mix de categorias e preço médio dos itens são similares nas seis regiões. A variável que muda é a operação das rotas e a supervisão de campo.</div>
+        </div>
+        <div class="action" style="margin-top:0.5rem">
+          <div class="action-lbl">Impacto financeiro da diferença</div>
+          <div class="action-txt">Se Altamonte Springs operasse no nível de Kissimmee, a redução representaria <strong>~$1.500/ano</strong> só nessa região — sem mudança de volume.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="spacer"></div>
+  <div class="fn">* ~1.420–1.485 pedidos/ano em cada região, mix de produtos e perfil demográfico de clientes similares.</div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════
+     07  O QUE FICA INVISÍVEL HOJE
+════════════════════════════════════════════════════════ -->
+<div class="slide">
+  <div class="spacer"></div>
+  <div class="content">
+    <div class="slide-label">05 · Pontos cegos do processo atual</div>
+    <p class="lead" style="font-size:1rem;margin-bottom:1.1rem">O processo atual é reativo: cliente reclama → CS processa → reembolso pago. Um motorista pode acumular 7% de taxa de falta o ano inteiro <strong>sem gerar um único alerta</strong> — cada ocorrência parece um caso isolado.</p>
+    <div class="alert-card">
+      <div class="alert-icon">🌙</div>
+      <div class="alert-body">
+        <div class="alert-title">Padrão por turno</div>
+        <div class="alert-desc">Motoristas com taxa normal durante o dia e taxa elevada especificamente em entregas noturnas. O turno esconde o desvio — olhando só a média geral, nada aparece.</div>
+      </div>
+      <div class="alert-badge badge-high">Alto risco</div>
+    </div>
+    <div class="alert-card">
+      <div class="alert-icon">👥</div>
+      <div class="alert-body">
+        <div class="alert-title">Par motorista-cliente</div>
+        <div class="alert-desc">Cliente com histórico limpo que começou a reclamar somente depois de ser atendido pelo mesmo motorista. Não é o cliente — é a combinação. Isso só aparece no cruzamento de dados.</div>
+      </div>
+      <div class="alert-badge badge-high">Alto risco</div>
+    </div>
+    <div class="alert-card">
+      <div class="alert-icon">📦</div>
+      <div class="alert-body">
+        <div class="alert-title">Produto de alto valor</div>
+        <div class="alert-desc">Eletrônicos acima de $80 aparecem com frequência desproporcional nos faltantes de certos motoristas. Não é esquecimento aleatório — é seletividade no item escolhido.</div>
+      </div>
+      <div class="alert-badge badge-med">Médio risco</div>
+    </div>
+  </div>
+  <div class="spacer"></div>
+  <div class="fn"></div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════
+     08  O QUE PRECISA MUDAR
+════════════════════════════════════════════════════════ -->
+<div class="slide">
+  <div class="spacer"></div>
+  <div class="content">
+    <div class="slide-label">06 · Ações recomendadas</div>
+    <div class="action">
+      <div class="action-lbl">1 — Foto obrigatória na entrega</div>
+      <div class="action-txt">O motorista fotografa o pedido na porta antes de sair. Elimina a ambiguidade de "deixei vs. não deixei". Custo: zero — qualquer smartphone já faz.</div>
+    </div>
+    <div class="action">
+      <div class="action-lbl">2 — Revisão mensal dos rankings de motorista</div>
+      <div class="action-txt">O gestor de campo vê mensalmente quem está acima de 4,82% e conversa com esses motoristas. Não como acusação — como checagem operacional. Muitos casos se resolvem antes de virar problema maior.</div>
+    </div>
+    <div class="action">
+      <div class="action-lbl">3 — Cruzamento de reclamações por par motorista-cliente</div>
+      <div class="action-txt">Quando um cliente reclama, checar se o mesmo motorista já teve ocorrência com esse cliente antes. Se sim, isso muda como a reclamação é tratada.</div>
+    </div>
+    <p class="muted" style="font-size:0.85rem;margin-top:0.9rem">Essas três ações custam tempo de gestão, não orçamento.</p>
+  </div>
+  <div class="spacer"></div>
+  <div class="fn">* Redes de entrega que implementaram foto obrigatória relatam 30–40% de redução em reclamações de itens faltantes.</div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════
+     09  PROJEÇÃO DE IMPACTO
+════════════════════════════════════════════════════════ -->
+<div class="slide">
+  <div class="spacer"></div>
+  <div class="content">
+    <div class="slide-label">07 · Projeção de recuperação</div>
+    <table>
+      <thead>
+        <tr>
+          <th>Cenário</th>
+          <th>O que inclui</th>
+          <th>Redução</th>
+          <th style="text-align:right">Economia/ano (Central FL)</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Processos</strong></td>
+          <td class="muted" style="font-size:0.88rem">Foto + revisão mensal + cruzamento de pares</td>
+          <td class="accent">~30%</td>
+          <td class="accent" style="text-align:right">~$13.900</td>
+        </tr>
+        <tr>
+          <td><strong>+ Monitoramento ativo</strong></td>
+          <td class="muted" style="font-size:0.88rem">Processos + alertas em tempo real usados pelos gestores</td>
+          <td class="accent">45–55%</td>
+          <td class="accent" style="text-align:right">~$21.000–25.000</td>
+        </tr>
+      </tbody>
+    </table>
+    <hr>
+    <p class="muted" style="font-size:0.88rem">No cenário de processos, o retorno sobre o custo de implementação ocorre em menos de 6 meses.</p>
+  </div>
+  <div class="spacer"></div>
+  <div class="fn">* Não inclui redução de custo com CS, reembolsos indevidos ou impacto em retenção de clientes.</div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════
+     10  PRÓXIMOS TRÊS PASSOS
+════════════════════════════════════════════════════════ -->
+<div class="slide">
+  <div class="spacer"></div>
+  <div class="content">
+    <div class="slide-label">08 · Plano de ação</div>
+    <div class="action">
+      <div class="action-lbl">Esta semana</div>
+      <div class="action-txt">Identificar os motoristas acima de 4,82% de taxa de falta e agendar conversa com os gestores de rota responsáveis. O sistema já tem essa lista pronta.</div>
+    </div>
+    <div class="action">
+      <div class="action-lbl">Este mês</div>
+      <div class="action-txt">Pilotar foto obrigatória na entrega em Altamonte Springs — a região com maior incidência. Medir o impacto nas reclamações ao longo de 30 dias antes de expandir.</div>
+    </div>
+    <div class="action">
+      <div class="action-lbl">Este trimestre</div>
+      <div class="action-txt">Integrar o dashboard com o fluxo diário de dados operacionais para que os rankings de motorista e os alertas de par sejam atualizados automaticamente, sem depender de extração manual.</div>
+    </div>
+  </div>
+  <div class="spacer"></div>
+  <div class="fn"></div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════
+     11  REFERÊNCIA RÁPIDA
+════════════════════════════════════════════════════════ -->
+<div class="slide">
+  <div class="spacer"></div>
+  <div class="content">
+    <div class="slide-label">Referência — números de 2023</div>
+    <table>
+      <tbody>
+        <tr><td>Total de pedidos analisados</td>          <td class="accent" style="text-align:right">10.000</td></tr>
+        <tr><td>Pedidos com item faltante</td>            <td class="red" style="text-align:right">1.502 &nbsp;(15,02%)</td></tr>
+        <tr><td>Total de itens faltantes</td>             <td style="text-align:right">1.657</td></tr>
+        <tr><td>Perda estimada</td>                       <td class="red" style="text-align:right">$46.396</td></tr>
+        <tr><td>Motoristas ativos</td>                    <td style="text-align:right">1.247</td></tr>
+        <tr><td>Taxa máxima individual — motorista</td>   <td class="red" style="text-align:right">7,46%</td></tr>
+        <tr><td>Clientes ativos</td>                      <td style="text-align:right">1.239</td></tr>
+        <tr><td>Taxa máxima individual — cliente</td>     <td class="red" style="text-align:right">13,64%</td></tr>
+        <tr><td>Região com maior incidência</td>          <td style="text-align:right">Altamonte Springs &nbsp;(1,76%)</td></tr>
+        <tr><td>Região com menor incidência</td>          <td style="text-align:right">Kissimmee &nbsp;(1,50%)</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="spacer"></div>
+  <div class="fn"></div>
+</div>
+
+
+</div><!-- #deck -->
+
+<div id="counter">1 / 11</div>
+
+<script>
+(function () {
+  var slides  = Array.from(document.querySelectorAll('#deck .slide'));
+  var counter = document.getElementById('counter');
+  var total   = slides.length;
+  var cur     = 0;
+
+  function go(n) {
+    slides[cur].classList.remove('active');
+    cur = n < 0 ? 0 : n >= total ? total - 1 : n;
+    slides[cur].classList.add('active');
+    counter.textContent = (cur + 1) + ' ∕ ' + total;
+  }
+
+  document.addEventListener('click', function () { go(cur + 1); });
+
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'ArrowRight' || e.key === ' ') { e.preventDefault(); go(cur + 1); }
+    if (e.key === 'ArrowLeft')                   { e.preventDefault(); go(cur - 1); }
+  });
+}());
+</script>
+</body>
+</html>
