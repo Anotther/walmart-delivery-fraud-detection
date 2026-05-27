@@ -11,7 +11,7 @@
 
 **Advanced ML-powered fraud detection system for Walmart e-commerce deliveries**
 
-[Live Demo](https://walmart-delivery-fraud-detection.streamlit.app/) | [Executive Presentation](https://anotther.github.io/walmart-delivery-fraud-detection/presentation.html) | [Documentation](DEPLOY.md) | [Report Issue](https://github.com/Anotther/walmart-delivery-fraud-detection/issues)
+[Live Demo](https://walmart-delivery-fraud-detection.streamlit.app/) | [Executive Presentation PDF](https://anotther.github.io/walmart-delivery-fraud-detection/Project%20Walmart.pdf) | [Operational Presentation](https://anotther.github.io/walmart-delivery-fraud-detection/presentation.html) | [Documentation](DEPLOY.md) | [Report Issue](https://github.com/Anotther/walmart-delivery-fraud-detection/issues)
 
 </div>
 
@@ -73,7 +73,11 @@ A multi-page analytics platform with 9 specialized modules:
 
 **[View Dashboard →](https://walmart-delivery-fraud-detection.streamlit.app/)**
 
-**[View Executive Presentation →](https://anotther.github.io/walmart-delivery-fraud-detection/presentation.html)**
+**[View Executive Presentation PDF →](https://anotther.github.io/walmart-delivery-fraud-detection/Project%20Walmart.pdf)**
+
+**[View Operational Presentation →](https://anotther.github.io/walmart-delivery-fraud-detection/presentation.html)**
+
+The executive presentation is the PDF version prepared for stakeholder review. The operational presentation is the HTML slide deck published with GitHub Pages for day-to-day area follow-up and recurring team discussions.
 
 <div align="center">
 
