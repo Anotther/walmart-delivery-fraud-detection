@@ -432,6 +432,14 @@ canvas.ptcl {
   .slide.active canvas.ptcl { opacity: .5; }
 }
 
+/* ── REDUCED MOTION ────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  .slide.active .an   { animation-duration: .01ms !important; }
+  .slide.active .blob { animation: none !important; opacity: .14; }
+  .prog-fill          { transition: none !important; }
+  .track              { transition: none !important; }
+}
+
 </style>
 </head>
 <body>
@@ -469,7 +477,7 @@ canvas.ptcl {
     <div style="display:flex;flex-direction:column;gap:30px;margin-bottom:44px;">
       <div class="an d1">
         <div class="acc-line"></div>
-        <div class="h1">10.000 entregas.<br>1 padrão.<br><span class="h1-gold">$425K expostos.</span></div>
+        <div class="h1">10.000 entregas.<br>1 padrão.<br><span class="h1-gold">$517K expostos.</span></div>
       </div>
 
       <div class="an d2">
@@ -721,7 +729,7 @@ canvas.ptcl {
       <div class="kpi r-border">
         <div class="kpi-lbl">Exposição Total (2023)</div>
         <div class="kpi-val" style="font-size:46px;letter-spacing:-.04em;">
-          $<span data-count="425" data-suffix="K">0K</span>
+          $<span data-count="517" data-suffix="K">0K</span>
         </div>
         <div class="kpi-desc">Valor dos pedidos afetados</div>
       </div>
@@ -844,7 +852,7 @@ canvas.ptcl {
       <div class="gc" style="padding:18px 22px;">
         <div style="font-size:13px;color:var(--t2);line-height:1.55;">
           <strong style="color:var(--yellow);">Insight:</strong>
-          Altamonte Springs lidera com 16,2% de missing rate — 1,3 p.p. acima da média regional de 15%.
+          Altamonte Springs lidera com 16,2% de missing rate — 1,2 p.p. acima da média regional de 15%.
           A variação entre cidades sugere fatores operacionais locais além de comportamento individual.
         </div>
       </div>
@@ -881,7 +889,7 @@ canvas.ptcl {
         <div class="dash-kpis">
           <div class="dk"><div class="dk-v">10K</div><div class="dk-l">Orders</div></div>
           <div class="dk"><div class="dk-v">15%</div><div class="dk-l">Missing Rate</div></div>
-          <div class="dk"><div class="dk-v">$425K</div><div class="dk-l">Exposure</div></div>
+          <div class="dk"><div class="dk-v">$517K</div><div class="dk-l">Exposure</div></div>
         </div>
         <div class="dash-chart">
           <div class="db" style="height:42%;background:linear-gradient(180deg,#0071CE,#003695);"></div>
@@ -1045,8 +1053,8 @@ function goTo(idx) {
 }
 
 document.addEventListener('keydown', e => {
-  if (e.key === 'ArrowRight' || e.key === ' ') { e.preventDefault(); goTo(cur + 1); }
-  if (e.key === 'ArrowLeft')                   { e.preventDefault(); goTo(cur - 1); }
+  if (e.key === 'ArrowRight') { e.preventDefault(); goTo(cur + 1); }
+  if (e.key === 'ArrowLeft')  { e.preventDefault(); goTo(cur - 1); }
 });
 
 /* Touch / swipe */
@@ -1061,13 +1069,18 @@ document.querySelector('.wrap').addEventListener('touchend',   e => {
 function animateBars(slide) {
   slide.querySelectorAll('.prog-fill').forEach(bar => {
     const w = bar.dataset.width;
-    if (w) setTimeout(() => { bar.style.width = w + '%'; }, 320);
+    if (w) {
+      bar.style.width = '0%';                              // reset so re-visits re-animate
+      setTimeout(() => { bar.style.width = w + '%'; }, 320);
+    }
   });
 }
 
 /* ── Counter Animation ─────────────────────────────────── */
 function animateCounters(slide) {
   slide.querySelectorAll('[data-count]').forEach(el => {
+    if (el.dataset.rafId) cancelAnimationFrame(parseInt(el.dataset.rafId)); // avoid overlapping loops
+
     const target   = parseInt(el.dataset.count);
     const suffix   = el.dataset.suffix || '';
     const duration = 1300;
@@ -1079,9 +1092,13 @@ function animateCounters(slide) {
       const p = Math.min((now - t0) / duration, 1);
       const e = 1 - Math.pow(1 - p, 3);            // ease-out-cubic
       el.textContent = fmt(Math.round(target * e)) + suffix;
-      if (p < 1) requestAnimationFrame(tick);
+      if (p < 1) {
+        el.dataset.rafId = requestAnimationFrame(tick);
+      } else {
+        delete el.dataset.rafId;
+      }
     }
-    requestAnimationFrame(tick);
+    el.dataset.rafId = requestAnimationFrame(tick);
   });
 }
 
@@ -1090,6 +1107,7 @@ function initParticles(id) {
   const canvas = document.getElementById(id);
   if (!canvas) return;
   const ctx = canvas.getContext('2d');
+  const slideEl = canvas.closest('.slide');
 
   const pts = Array.from({ length: 70 }, () => ({
     x:  Math.random() * 1080,
@@ -1102,16 +1120,19 @@ function initParticles(id) {
   }));
 
   function draw() {
-    ctx.clearRect(0, 0, 1080, 1350);
-    pts.forEach(p => {
-      p.x += p.vx; p.y += p.vy;
-      if (p.x < 0) p.x = 1080; if (p.x > 1080) p.x = 0;
-      if (p.y < 0) p.y = 1350; if (p.y > 1350) p.y = 0;
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
-      ctx.fillStyle = `hsla(${p.hue},90%,60%,${p.a})`;
-      ctx.fill();
-    });
+    // Only paint when the parent slide is visible — saves CPU/GPU on inactive slides
+    if (slideEl && slideEl.classList.contains('active')) {
+      ctx.clearRect(0, 0, 1080, 1350);
+      pts.forEach(p => {
+        p.x += p.vx; p.y += p.vy;
+        if (p.x < 0) p.x = 1080; if (p.x > 1080) p.x = 0;
+        if (p.y < 0) p.y = 1350; if (p.y > 1350) p.y = 0;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+        ctx.fillStyle = `hsla(${p.hue},90%,60%,${p.a})`;
+        ctx.fill();
+      });
+    }
     requestAnimationFrame(draw);
   }
   draw();
