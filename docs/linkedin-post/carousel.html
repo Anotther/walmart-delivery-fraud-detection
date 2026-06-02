@@ -277,6 +277,7 @@ body {
 
 /* ── PRINT / PDF ──────────────────────────────────────────────────── */
 @media print {
+  @page { size: 1080px 1350px; margin: 0; }
   body  { background: #fff; padding: 0; }
   .nav-btn, .dots { display: none; }
   .wrap { width: auto; overflow: visible; border-radius: 0; box-shadow: none; }
@@ -293,8 +294,8 @@ body {
 </head>
 <body>
 
-<button class="nav-btn" id="btnPrev" onclick="go(cur-1)">←</button>
-<button class="nav-btn" id="btnNext" onclick="go(cur+1)">→</button>
+<button class="nav-btn" id="btnPrev" onclick="go(cur-1)" title="Slide anterior" aria-label="Slide anterior">←</button>
+<button class="nav-btn" id="btnNext" onclick="go(cur+1)" title="Próximo slide" aria-label="Próximo slide">→</button>
 <div class="dots" id="dots"></div>
 
 <div class="wrap">
@@ -763,12 +764,19 @@ document.addEventListener('keydown', e => {
   if (e.key === 'ArrowLeft')  { e.preventDefault(); go(cur - 1); }
 });
 
-let tx0 = 0;
+let tx0 = 0, ty0 = 0;
 const wrap = document.querySelector('.wrap');
-wrap.addEventListener('touchstart', e => { tx0 = e.touches[0].clientX; }, { passive: true });
+wrap.addEventListener('touchstart', e => {
+  tx0 = e.touches[0].clientX;
+  ty0 = e.touches[0].clientY;
+}, { passive: true });
 wrap.addEventListener('touchend',   e => {
   const dx = e.changedTouches[0].clientX - tx0;
-  if (Math.abs(dx) > 50) go(dx < 0 ? cur + 1 : cur - 1);
+  const dy = e.changedTouches[0].clientY - ty0;
+  // only swipe when the gesture is predominantly horizontal
+  if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy)) {
+    go(dx < 0 ? cur + 1 : cur - 1);
+  }
 });
 
 go(0);
