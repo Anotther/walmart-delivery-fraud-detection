@@ -71,17 +71,25 @@ A multi-page analytics platform with 9 specialized modules:
 
 ## Live Demo
 
-**[View Dashboard →](https://walmart-delivery-fraud-detection.streamlit.app/)**
+<div align="center">
 
-**[View Executive Presentation PDF →](https://anotther.github.io/walmart-delivery-fraud-detection/Project%20Walmart.pdf)**
+<a href="https://walmart-delivery-fraud-detection.streamlit.app/">
+  <img src="https://img.shields.io/badge/View%20Dashboard-FF4B4B?style=for-the-badge&logo=streamlit&logoColor=white" alt="View Dashboard"/>
+</a>
+&nbsp;&nbsp;
+<a href="https://anotther.github.io/walmart-delivery-fraud-detection/Project%20Walmart.pdf">
+  <img src="https://img.shields.io/badge/Executive%20Presentation%20PDF-0052CC?style=for-the-badge&logo=adobeacrobatreader&logoColor=white" alt="Executive Presentation PDF"/>
+</a>
+&nbsp;&nbsp;
+<a href="https://anotther.github.io/walmart-delivery-fraud-detection/presentation.html">
+  <img src="https://img.shields.io/badge/Operational%20Presentation-2EA44F?style=for-the-badge&logo=html5&logoColor=white" alt="Operational Presentation"/>
+</a>
 
-**[View Operational Presentation →](https://anotther.github.io/walmart-delivery-fraud-detection/presentation.html)**
+</div>
 
 The executive presentation is the PDF version prepared for stakeholder review. The operational presentation is the HTML slide deck published with GitHub Pages for day-to-day area follow-up and recurring team discussions.
 
 <div align="center">
-
-[![Open in Streamlit](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://walmart-delivery-fraud-detection.streamlit.app/)
 
 ![Dashboard Preview](docs/assets/dashboard-preview.gif)
 
