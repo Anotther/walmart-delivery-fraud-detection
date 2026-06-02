@@ -1,0 +1,1148 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Walmart Fraud Detection · LinkedIn Carousel</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
+<style>
+
+/* ============================================================
+   DESIGN SYSTEM TOKENS
+   Extracted from: src/dashboard/theme.py + dashboard/styles/main.css
+   ============================================================ */
+:root {
+  /* Walmart Brand */
+  --blue:        #0071CE;
+  --blue-dark:   #003695;
+  --blue-deeper: #004C91;
+  --yellow:      #FFC220;
+  --yellow-lt:   #FFE066;
+
+  /* Semantic */
+  --critical: #EF4444;
+  --warning:  #F59E0B;
+  --success:  #10B981;
+  --info:     #3B82F6;
+
+  /* Dark slide background */
+  --bg:        #030C18;
+  --bg-card:   rgba(255 255 255 / 0.06);
+  --glass-b:   rgba(255 255 255 / 0.11);
+  --glass-s:   rgba(255 255 255 / 0.04);
+
+  /* Text */
+  --t1: #F8FAFC;
+  --t2: rgba(248 250 252 / 0.62);
+  --t3: rgba(248 250 252 / 0.35);
+
+  /* Slide canvas */
+  --sw: 1080px;
+  --sh: 1350px;
+
+  /* Typography */
+  --font: 'Inter', 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+}
+
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html { scroll-behavior: smooth; }
+
+body {
+  background: #060606;
+  font-family: var(--font);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 40px 20px 80px;
+  gap: 32px;
+  color: var(--t1);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── CONTROLS ──────────────────────────────────────────────── */
+.controls {
+  position: fixed;
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: rgba(255 255 255 / 0.07);
+  border: 1px solid rgba(255 255 255 / 0.12);
+  border-radius: 40px;
+  padding: 8px 16px;
+  z-index: 200;
+  backdrop-filter: blur(16px);
+}
+
+.controls button {
+  width: 36px; height: 36px;
+  border-radius: 50%;
+  background: rgba(255 255 255 / 0.10);
+  border: 1px solid rgba(255 255 255 / 0.15);
+  color: #fff;
+  font-size: 16px;
+  cursor: pointer;
+  display: flex; align-items: center; justify-content: center;
+  transition: background .2s;
+  line-height: 1;
+}
+.controls button:hover { background: rgba(0 113 206 / 0.35); }
+
+#slideCount { font-size: 13px; font-weight: 600; color: var(--t2); min-width: 44px; text-align: center; }
+
+/* ── CAROUSEL ──────────────────────────────────────────────── */
+.wrap { width: var(--sw); overflow: hidden; border-radius: 20px; box-shadow: 0 40px 120px rgba(0 0 0 / 0.7); }
+
+.track {
+  display: flex;
+  transition: transform .55s cubic-bezier(.4, 0, .2, 1);
+}
+
+/* ── SLIDE BASE ────────────────────────────────────────────── */
+.slide {
+  width: var(--sw);
+  min-width: var(--sw);
+  height: var(--sh);
+  position: relative;
+  overflow: hidden;
+  background: var(--bg);
+  flex-shrink: 0;
+  cursor: grab;
+}
+.slide:active { cursor: grabbing; }
+
+/* Noise texture */
+.slide::before {
+  content: '';
+  position: absolute; inset: 0; z-index: 1; pointer-events: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='300' height='300'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  opacity: .028;
+}
+
+/* Vignette */
+.slide::after {
+  content: '';
+  position: absolute; inset: 0; z-index: 2; pointer-events: none;
+  background: radial-gradient(ellipse at 50% 50%, transparent 35%, rgba(3 12 24 / .55) 100%);
+}
+
+/* ── GRADIENT MESH ─────────────────────────────────────────── */
+.mesh { position: absolute; inset: 0; z-index: 0; }
+
+.blob {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(90px);
+  mix-blend-mode: screen;
+  opacity: 0;
+  will-change: transform, opacity;
+}
+
+.slide.active .blob { animation: blobPulse 9s ease-in-out infinite; }
+
+@keyframes blobPulse {
+  0%,100% { opacity: .14; transform: translate(0,0) scale(1); }
+  33%      { opacity: .19; transform: translate(28px,-18px) scale(1.04); }
+  66%      { opacity: .10; transform: translate(-18px,14px) scale(.97); }
+}
+
+/* ── PARTICLE CANVAS ───────────────────────────────────────── */
+canvas.ptcl {
+  position: absolute; inset: 0; z-index: 3;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 1.2s ease;
+}
+.slide.active canvas.ptcl { opacity: .65; }
+
+/* ── SLIDE CONTENT ─────────────────────────────────────────── */
+.sc {
+  position: relative; z-index: 10;
+  height: 100%;
+  display: flex; flex-direction: column;
+  padding: 68px 76px;
+}
+
+/* ── ENTRY ANIMATIONS ──────────────────────────────────────── */
+.an { opacity: 0; transform: translateY(22px); }
+.slide.active .an { animation: fadeUp .65s cubic-bezier(.16,1,.3,1) both; }
+.d1 { animation-delay: 80ms !important; }
+.d2 { animation-delay: 165ms !important; }
+.d3 { animation-delay: 250ms !important; }
+.d4 { animation-delay: 335ms !important; }
+.d5 { animation-delay: 420ms !important; }
+.d6 { animation-delay: 505ms !important; }
+
+@keyframes fadeUp {
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ── TYPOGRAPHY ────────────────────────────────────────────── */
+.tag {
+  font-size: 12px; font-weight: 700;
+  letter-spacing: 5px; text-transform: uppercase;
+  color: var(--yellow);
+}
+
+.snum { font-size: 12px; font-weight: 600; color: var(--t3); letter-spacing: 2.5px; }
+
+.h1 {
+  font-size: 60px; font-weight: 900;
+  line-height: 1.03; letter-spacing: -.035em;
+  background: linear-gradient(140deg, #F8FAFC 0%, #93C5FD 100%);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+}
+
+.h1-gold {
+  background: linear-gradient(135deg, var(--yellow) 0%, var(--yellow-lt) 45%, #fff 100%);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+}
+
+.h2 {
+  font-size: 46px; font-weight: 900;
+  line-height: 1.07; letter-spacing: -.03em;
+  background: linear-gradient(140deg, #F8FAFC 0%, #93C5FD 100%);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+}
+
+.sub {
+  font-size: 12px; font-weight: 700;
+  letter-spacing: 4px; text-transform: uppercase;
+  color: var(--t2); margin-top: 10px;
+}
+
+.body {
+  font-size: 17px; font-weight: 400;
+  line-height: 1.65; color: var(--t2);
+}
+
+.body strong { color: var(--yellow); font-weight: 700; }
+
+/* ── ACCENT LINE ───────────────────────────────────────────── */
+.acc-line {
+  width: 56px; height: 4px;
+  border-radius: 9999px;
+  background: var(--yellow);
+  margin-bottom: 28px;
+  flex-shrink: 0;
+}
+
+/* ── BADGE PILLS ───────────────────────────────────────────── */
+.pills { display: flex; flex-wrap: wrap; gap: 9px; }
+
+.pill {
+  font-size: 12px; font-weight: 600;
+  padding: 6px 15px; border-radius: 9999px;
+  border: 1px solid var(--glass-b);
+  background: var(--bg-card);
+  color: var(--t1); letter-spacing: .3px;
+}
+.pill.b { background: rgba(0 113 206 /.20); border-color: rgba(0 113 206/.4); color: #7EC8F8; }
+.pill.y { background: rgba(255 194 32/.15); border-color: rgba(255 194 32/.4); color: var(--yellow); }
+.pill.g { background: rgba(16 185 129/.15); border-color: rgba(16 185 129/.4); color: #34D399; }
+.pill.r { background: rgba(239 68 68/.15);  border-color: rgba(239 68 68/.4);  color: #FCA5A5; }
+
+/* ── GLASS CARD ────────────────────────────────────────────── */
+.gc {
+  background: var(--bg-card);
+  border: 1px solid var(--glass-b);
+  border-radius: 18px;
+  padding: 26px 28px;
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+
+/* ── KPI CARD ──────────────────────────────────────────────── */
+.kpi {
+  background: var(--bg-card);
+  border: 1px solid var(--glass-b);
+  border-radius: 18px;
+  padding: 30px 26px 26px;
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  display: flex; flex-direction: column; gap: 9px;
+}
+.kpi.y-border { border-color: rgba(255 194 32/.35); }
+.kpi.r-border { border-color: rgba(239 68 68/.35); }
+.kpi.g-border { border-color: rgba(16 185 129/.35); }
+
+.kpi-lbl {
+  font-size: 12px; font-weight: 700;
+  letter-spacing: 3.5px; text-transform: uppercase;
+  color: var(--t3);
+}
+
+.kpi-val {
+  font-size: 58px; font-weight: 900;
+  line-height: 1; letter-spacing: -.04em;
+  color: var(--t1);
+}
+.kpi-val .su { font-size: 30px; }
+
+.kpi-desc { font-size: 13px; color: var(--t2); margin-top: 2px; }
+
+/* ── BIG STAT ──────────────────────────────────────────────── */
+.big-stat {
+  font-size: 128px; font-weight: 900;
+  line-height: 1; letter-spacing: -.06em;
+  background: linear-gradient(135deg, var(--yellow) 0%, var(--yellow-lt) 100%);
+  -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+  filter: drop-shadow(0 0 32px rgba(255 194 32/.45));
+}
+
+/* ── PROGRESS BAR ──────────────────────────────────────────── */
+.prog-item { display: flex; flex-direction: column; gap: 7px; }
+
+.prog-hd {
+  display: flex; justify-content: space-between; align-items: center;
+}
+.prog-lbl { font-size: 14.5px; font-weight: 600; color: var(--t1); }
+.prog-val { font-size: 14.5px; font-weight: 800; color: var(--yellow); }
+
+.prog-track {
+  height: 9px;
+  background: rgba(255 255 255/.08);
+  border-radius: 9999px;
+  overflow: hidden;
+}
+.prog-fill {
+  height: 100%; border-radius: 9999px;
+  background: linear-gradient(90deg, var(--blue), var(--yellow));
+  width: 0%;
+  transition: width .85s cubic-bezier(.4,0,.2,1);
+}
+
+/* ── PIPELINE ──────────────────────────────────────────────── */
+.pipeline { display: flex; align-items: flex-start; gap: 0; }
+
+.pip-step { display: flex; flex-direction: column; align-items: center; gap: 10px; flex: 1; }
+
+.pip-icon {
+  width: 66px; height: 66px; border-radius: 18px;
+  background: rgba(255 255 255/.08);
+  border: 1px solid var(--glass-b);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 28px;
+}
+
+.pip-lbl {
+  font-size: 12px; font-weight: 700;
+  letter-spacing: .5px; text-align: center;
+  color: var(--t2); text-transform: uppercase; line-height: 1.4;
+}
+.pip-tech { font-size: 12px; color: var(--t3); text-align: center; line-height: 1.4; }
+
+.pip-arrow {
+  color: rgba(255 255 255/.18); font-size: 22px;
+  align-self: flex-start; margin-top: 21px;
+  flex-shrink: 0; padding: 0 4px;
+}
+
+/* ── DECISION CARD ─────────────────────────────────────────── */
+.dc {
+  background: var(--bg-card);
+  border: 1px solid var(--glass-b);
+  border-left: 4px solid var(--yellow);
+  border-radius: 16px;
+  padding: 20px 24px;
+  display: flex; flex-direction: column; gap: 7px;
+}
+.dc-t { font-size: 14px; font-weight: 700; color: var(--t1); }
+.dc-b { font-size: 13px; color: var(--t2); line-height: 1.55; }
+
+/* ── DASHBOARD MOCKUP ──────────────────────────────────────── */
+.dash {
+  background: rgba(0 55 120/.28);
+  border: 1px solid rgba(0 113 206/.32);
+  border-radius: 18px;
+  padding: 0;
+  overflow: hidden;
+}
+.dash-bar-top {
+  background: var(--blue-dark);
+  padding: 14px 22px;
+  display: flex; gap: 10px; align-items: center;
+}
+.dot { width: 10px; height: 10px; border-radius: 50%; background: rgba(255 255 255/.28); }
+.dash-url { font-size: 12px; color: rgba(255 255 255/.65); font-weight: 600; margin-left: 6px; }
+
+.dash-body { padding: 18px 20px; }
+
+.dash-kpis { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 12px; }
+.dk {
+  background: rgba(0 76 145/.35);
+  border: 1px solid rgba(0 113 206/.22);
+  border-radius: 10px; padding: 13px;
+}
+.dk-v { font-size: 24px; font-weight: 900; color: #7EC8F8; }
+.dk-l { font-size: 12px; color: rgba(255 255 255/.45); text-transform: uppercase; letter-spacing: 1.2px; margin-top: 3px; }
+
+.dash-chart {
+  background: rgba(0 76 145/.22);
+  border: 1px solid rgba(0 113 206/.18);
+  border-radius: 10px;
+  height: 86px;
+  display: flex; align-items: flex-end;
+  padding: 10px 14px; gap: 7px;
+}
+.db { flex: 1; border-radius: 4px 4px 0 0; }
+
+/* ── DIVIDER ───────────────────────────────────────────────── */
+.div { height: 1px; background: var(--glass-b); }
+
+/* ── CTA ───────────────────────────────────────────────────── */
+.cta-q { font-size: 23px; font-weight: 700; color: var(--t1); line-height: 1.45; }
+
+/* ── SLIDE DOTS ────────────────────────────────────────────── */
+.dots {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: center;
+  margin-top: 18px;
+}
+.dot-btn {
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: rgba(255 255 255 / .22);
+  border: none; cursor: pointer;
+  transition: all .35s cubic-bezier(.4,0,.2,1);
+  padding: 0;
+  flex-shrink: 0;
+}
+.dot-btn.on {
+  width: 26px;
+  border-radius: 4px;
+  background: var(--yellow);
+}
+
+/* ── PRINT / PDF EXPORT ────────────────────────────────────── */
+@media print {
+  body { background: #000; padding: 0; gap: 0; }
+  .controls, .dots { display: none; }
+  .wrap { width: var(--sw); overflow: visible; border-radius: 0; box-shadow: none; }
+  .track { flex-direction: column; transform: none !important; }
+  .slide { page-break-after: always; break-after: page; }
+  .slide.active .blob { animation: none; opacity: .14; }
+  .slide.active canvas.ptcl { opacity: .5; }
+}
+
+/* ── REDUCED MOTION ────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  .slide.active .an   { animation-duration: .01ms !important; }
+  .slide.active .blob { animation: none !important; opacity: .14; }
+  .prog-fill          { transition: none !important; }
+  .track              { transition: none !important; }
+}
+
+</style>
+</head>
+<body>
+
+<!-- ── CONTROLS ─────────────────────────────────────────────── -->
+<div class="controls">
+  <button onclick="goTo(cur-1)" title="Anterior" aria-label="Slide anterior">&#8592;</button>
+  <span id="slideCount">1 / 8</span>
+  <button onclick="goTo(cur+1)" title="Próximo" aria-label="Próximo slide">&#8594;</button>
+</div>
+
+<!-- ── CAROUSEL ─────────────────────────────────────────────── -->
+<div class="wrap">
+<div class="track" id="track">
+
+<!-- ═══════════════════════════════════════════════════════════
+     SLIDE 1 · CAPA
+═══════════════════════════════════════════════════════════ -->
+<div class="slide" data-slide="1">
+  <canvas class="ptcl" id="ptcl1" width="1080" height="1350"></canvas>
+  <div class="mesh">
+    <div class="blob" style="width:540px;height:540px;top:-120px;left:-120px;background:radial-gradient(circle,#0071CE 0%,transparent 70%);animation-delay:0s;"></div>
+    <div class="blob" style="width:440px;height:440px;bottom:60px;right:-90px;background:radial-gradient(circle,#FFC220 0%,transparent 70%);animation-delay:2.5s;"></div>
+    <div class="blob" style="width:380px;height:380px;top:45%;left:32%;background:radial-gradient(circle,#003695 0%,transparent 70%);animation-delay:5s;opacity:0.08;"></div>
+  </div>
+
+  <div class="sc">
+    <!-- Top row -->
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:auto;" class="an">
+      <span class="tag">Fraud Detection · E-Commerce · Machine Learning</span>
+      <span class="snum">01 / 08</span>
+    </div>
+
+    <!-- Center block -->
+    <div style="display:flex;flex-direction:column;gap:30px;margin-bottom:44px;">
+      <div class="an d1">
+        <div class="acc-line"></div>
+        <div class="h1">10.000 entregas.<br>1 padrão.<br><span class="h1-gold">$517K expostos.</span></div>
+      </div>
+
+      <div class="an d2">
+        <div class="sub">15% das entregas reportam itens ausentes · Flórida Central · 2023</div>
+      </div>
+
+      <div class="an d3">
+        <div class="body">
+          Sistema end-to-end de detecção de fraudes em e-commerce usando ML não supervisionado,
+          score de risco multi-fator e dashboard analítico com <strong>9 módulos em produção</strong>.
+        </div>
+      </div>
+    </div>
+
+    <!-- Badges -->
+    <div class="an d4">
+      <div class="pills">
+        <span class="pill b">Python 3.11</span>
+        <span class="pill b">scikit-learn</span>
+        <span class="pill y">MLflow</span>
+        <span class="pill b">Streamlit</span>
+        <span class="pill">PostgreSQL</span>
+        <span class="pill">Isolation Forest</span>
+        <span class="pill g">K-Means · DBSCAN</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════
+     SLIDE 2 · PROBLEMA
+═══════════════════════════════════════════════════════════ -->
+<div class="slide" data-slide="2">
+  <div class="mesh">
+    <div class="blob" style="width:480px;height:480px;top:-150px;right:-60px;background:radial-gradient(circle,#0071CE 0%,transparent 70%);animation-delay:0s;"></div>
+    <div class="blob" style="width:400px;height:400px;bottom:-110px;left:-80px;background:radial-gradient(circle,#FFC220 0%,transparent 70%);animation-delay:3.5s;"></div>
+  </div>
+
+  <div class="sc">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:52px;" class="an">
+      <span class="tag">O Problema</span>
+      <span class="snum">02 / 08</span>
+    </div>
+
+    <div class="an d1" style="margin-bottom:32px;">
+      <div class="h2">O problema<br>invisível no<br>e-commerce</div>
+    </div>
+
+    <div class="an d2" style="margin-bottom:36px;">
+      <div class="gc">
+        <div class="body">
+          Em 2023, o Walmart registrou <strong>$6,5 bilhões</strong> em perdas com furtos.
+          <strong>53%</strong> do crescimento veio de entregas onde clientes reportam itens ausentes —
+          um vetor de fraude invisível sem análise de dados estruturada.
+        </div>
+      </div>
+    </div>
+
+    <!-- Big stat -->
+    <div class="an d3" style="margin-bottom:36px;text-align:center;">
+      <div class="big-stat" data-count="15" data-suffix="%">0%</div>
+      <div style="font-size:14px;color:var(--t2);letter-spacing:2.5px;text-transform:uppercase;margin-top:10px;">
+        dos pedidos com itens reportados ausentes
+      </div>
+    </div>
+
+    <!-- Progress bar -->
+    <div class="an d4" style="display:flex;flex-direction:column;gap:8px;">
+      <div style="display:flex;justify-content:space-between;font-size:13px;color:var(--t2);">
+        <span>Taxa de missing items · 1.502 pedidos afetados</span>
+        <span style="color:var(--yellow);font-weight:700;">15,0%</span>
+      </div>
+      <div class="prog-track">
+        <div class="prog-fill" data-width="15"></div>
+      </div>
+      <div style="font-size:12px;color:var(--t3);">Base: 10.000 pedidos · 1.247 motoristas · 1.239 clientes · 2023 completo</div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════
+     SLIDE 3 · STACK & PIPELINE
+═══════════════════════════════════════════════════════════ -->
+<div class="slide" data-slide="3">
+  <div class="mesh">
+    <div class="blob" style="width:420px;height:420px;top:-100px;left:22%;background:radial-gradient(circle,#003695 0%,transparent 70%);animation-delay:0s;"></div>
+    <div class="blob" style="width:380px;height:380px;bottom:-80px;right:-50px;background:radial-gradient(circle,#0071CE 0%,transparent 70%);animation-delay:2s;"></div>
+  </div>
+
+  <div class="sc">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:52px;" class="an">
+      <span class="tag">Arquitetura do Sistema</span>
+      <span class="snum">03 / 08</span>
+    </div>
+
+    <div class="an d1" style="margin-bottom:12px;">
+      <div class="h2">Como o sistema<br>funciona</div>
+    </div>
+
+    <div class="an d2" style="margin-bottom:36px;">
+      <div class="body">Pipeline end-to-end: da ingestão de dados brutos ao score de risco em tempo real.</div>
+    </div>
+
+    <!-- Pipeline visual -->
+    <div class="pipeline an d3" style="margin-bottom:36px;">
+      <div class="pip-step">
+        <div class="pip-icon">📊</div>
+        <div class="pip-lbl">Dados<br>Brutos</div>
+        <div class="pip-tech">CSV · PostgreSQL<br>5 datasets</div>
+      </div>
+      <div class="pip-arrow">→</div>
+      <div class="pip-step">
+        <div class="pip-icon">⚙️</div>
+        <div class="pip-lbl">ETL<br>Pipeline</div>
+        <div class="pip-tech">Pandas · SQLAlchemy<br>Transformers</div>
+      </div>
+      <div class="pip-arrow">→</div>
+      <div class="pip-step">
+        <div class="pip-icon">🔬</div>
+        <div class="pip-lbl">Feature<br>Engineering</div>
+        <div class="pip-tech">4 módulos<br>Driver · Customer</div>
+      </div>
+      <div class="pip-arrow">→</div>
+      <div class="pip-step">
+        <div class="pip-icon">🤖</div>
+        <div class="pip-lbl">ML<br>Models</div>
+        <div class="pip-tech">scikit-learn<br>MLflow tracking</div>
+      </div>
+      <div class="pip-arrow">→</div>
+      <div class="pip-step">
+        <div class="pip-icon">⚡</div>
+        <div class="pip-lbl">Risk<br>Score</div>
+        <div class="pip-tech">0 – 100<br>5 fatores</div>
+      </div>
+      <div class="pip-arrow">→</div>
+      <div class="pip-step">
+        <div class="pip-icon">📈</div>
+        <div class="pip-lbl">Dashboard<br>Live</div>
+        <div class="pip-tech">Streamlit<br>9 módulos</div>
+      </div>
+    </div>
+
+    <!-- Models row -->
+    <div class="an d4" style="display:flex;flex-direction:column;gap:14px;">
+      <div style="font-size:12px;font-weight:700;letter-spacing:3px;text-transform:uppercase;color:var(--t3);">
+        Modelos em produção
+      </div>
+      <div style="display:flex;gap:12px;">
+        <div class="gc" style="flex:1;padding:18px;">
+          <div style="font-size:13.5px;font-weight:700;color:var(--t1);margin-bottom:5px;">Isolation Forest</div>
+          <div style="font-size:12px;color:var(--t2);">Detecção de anomalias · contamination 10%</div>
+        </div>
+        <div class="gc" style="flex:1;padding:18px;">
+          <div style="font-size:13.5px;font-weight:700;color:var(--t1);margin-bottom:5px;">K-Means · DBSCAN</div>
+          <div style="font-size:12px;color:var(--t2);">Segmentação de perfis de risco</div>
+        </div>
+        <div class="gc" style="flex:1;padding:18px;">
+          <div style="font-size:13.5px;font-weight:700;color:var(--t1);margin-bottom:5px;">Ensemble Detector</div>
+          <div style="font-size:12px;color:var(--t2);">IF + LOF em estratégia combinada</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════
+     SLIDE 4 · METODOLOGIA
+═══════════════════════════════════════════════════════════ -->
+<div class="slide" data-slide="4">
+  <div class="mesh">
+    <div class="blob" style="width:440px;height:440px;top:-80px;right:-60px;background:radial-gradient(circle,#FFC220 0%,transparent 70%);animation-delay:0s;"></div>
+    <div class="blob" style="width:380px;height:380px;bottom:-120px;left:-60px;background:radial-gradient(circle,#0071CE 0%,transparent 70%);animation-delay:3.5s;"></div>
+  </div>
+
+  <div class="sc">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:52px;" class="an">
+      <span class="tag">Decisões de Engenharia</span>
+      <span class="snum">04 / 08</span>
+    </div>
+
+    <div class="an d1" style="margin-bottom:16px;">
+      <div class="h2">Por que ML<br>não supervisionado?</div>
+    </div>
+
+    <div class="an d2" style="margin-bottom:36px;">
+      <div class="body">
+        Sem rótulos históricos de fraude confirmada, a abordagem supervisionada não é viável.
+        Estas foram as três decisões centrais de engenharia:
+      </div>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:18px;">
+      <div class="dc an d3">
+        <div class="dc-t">Isolation Forest para detecção de anomalias</div>
+        <div class="dc-b">
+          Escolhi IF porque isola instâncias raras com menos splits na árvore — eficiente quando fraude
+          é minoria absoluta dos dados e sem labels disponíveis.
+        </div>
+      </div>
+      <div class="dc an d4">
+        <div class="dc-t">K-Means + DBSCAN para segmentação de perfis</div>
+        <div class="dc-b">
+          K-Means define clusters com número fixo de grupos de risco (5 clusters); DBSCAN encontra
+          agrupamentos por densidade sem número pré-definido — abordagens complementares.
+        </div>
+      </div>
+      <div class="dc an d5">
+        <div class="dc-t">Risk Score Engine multi-fator (escala 0–100)</div>
+        <div class="dc-b">
+          Missing rate (25%) · anomaly score (25%) · padrão histórico (20%) ·
+          cluster risk (15%) · frequência (15%). Pesos calibrados para operações de entrega e-commerce.
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════
+     SLIDE 5 · RESULTADOS — KPIs
+═══════════════════════════════════════════════════════════ -->
+<div class="slide" data-slide="5">
+  <div class="mesh">
+    <div class="blob" style="width:460px;height:460px;top:-100px;left:-90px;background:radial-gradient(circle,#0071CE 0%,transparent 70%);animation-delay:0s;"></div>
+    <div class="blob" style="width:380px;height:380px;bottom:-70px;right:-60px;background:radial-gradient(circle,#003695 0%,transparent 70%);animation-delay:2s;"></div>
+  </div>
+
+  <div class="sc">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:52px;" class="an">
+      <span class="tag">Resultados</span>
+      <span class="snum">05 / 08</span>
+    </div>
+
+    <div class="an d1" style="margin-bottom:40px;">
+      <div class="h2">O sistema<br>em números</div>
+    </div>
+
+    <!-- 2×2 KPI grid -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;flex:1;" class="an d2">
+      <div class="kpi">
+        <div class="kpi-lbl">Pedidos Analisados</div>
+        <div class="kpi-val"><span data-count="10000" data-suffix="">0</span></div>
+        <div class="kpi-desc">Central Florida · jan–dez 2023</div>
+      </div>
+      <div class="kpi y-border">
+        <div class="kpi-lbl">Taxa de Missing Items</div>
+        <div class="kpi-val"><span data-count="15" data-suffix="%">0%</span></div>
+        <div class="kpi-desc">1.502 pedidos com itens ausentes</div>
+      </div>
+      <div class="kpi r-border">
+        <div class="kpi-lbl">Exposição Total (2023)</div>
+        <div class="kpi-val" style="font-size:46px;letter-spacing:-.04em;">
+          $<span data-count="517" data-suffix="K">0K</span>
+        </div>
+        <div class="kpi-desc">Valor dos pedidos afetados</div>
+      </div>
+      <div class="kpi g-border">
+        <div class="kpi-lbl">Motorista de Maior Risco</div>
+        <div class="kpi-val">6,1<span style="font-size:32px;font-weight:700;">x</span></div>
+        <div class="kpi-desc">Acima da taxa média (7,46% vs 1,22%)</div>
+      </div>
+    </div>
+
+    <div class="an d3" style="margin-top:22px;">
+      <div style="font-size:12px;color:var(--t3);text-align:center;">
+        Dados: 10.000 pedidos · 1.247 motoristas · 1.239 clientes · 314 produtos · 5 cidades
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════
+     SLIDE 6 · DISTRIBUIÇÃO GEOGRÁFICA
+═══════════════════════════════════════════════════════════ -->
+<div class="slide" data-slide="6">
+  <div class="mesh">
+    <div class="blob" style="width:420px;height:420px;top:-100px;left:20%;background:radial-gradient(circle,#FFC220 0%,transparent 70%);animation-delay:0s;"></div>
+    <div class="blob" style="width:360px;height:360px;bottom:-80px;right:-50px;background:radial-gradient(circle,#0071CE 0%,transparent 70%);animation-delay:3s;"></div>
+  </div>
+
+  <div class="sc">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:52px;" class="an">
+      <span class="tag">Análise Geográfica</span>
+      <span class="snum">06 / 08</span>
+    </div>
+
+    <div class="an d1" style="margin-bottom:12px;">
+      <div class="h2">Padrões<br>por região</div>
+    </div>
+
+    <div class="an d2" style="margin-bottom:28px;">
+      <div class="body">Taxa de pedidos com itens ausentes por cidade · Flórida Central · 2023</div>
+    </div>
+
+    <!-- Progress bars — real data from CSV analysis -->
+    <div style="display:flex;flex-direction:column;gap:18px;" class="an d3">
+
+      <div class="prog-item">
+        <div class="prog-hd">
+          <span class="prog-lbl">🔴 Altamonte Springs</span>
+          <span class="prog-val">16,2%</span>
+        </div>
+        <div class="prog-track">
+          <!-- bar scaled to actual data range: min=13.9%, max=16.2%, floor=55, ceil=97 -->
+        <div class="prog-fill" data-width="97" style="background:linear-gradient(90deg,#EF4444,#FCA5A5);"></div>
+        </div>
+      </div>
+
+      <div class="prog-item">
+        <div class="prog-hd">
+          <span class="prog-lbl">🟠 Clermont</span>
+          <span class="prog-val">15,8%</span>
+        </div>
+        <div class="prog-track">
+          <div class="prog-fill" data-width="90" style="background:linear-gradient(90deg,#F59E0B,#FCD34D);"></div>
+        </div>
+      </div>
+
+      <div class="prog-item">
+        <div class="prog-hd">
+          <span class="prog-lbl">🟠 Apopka</span>
+          <span class="prog-val">15,3%</span>
+        </div>
+        <div class="prog-track">
+          <div class="prog-fill" data-width="81"></div>
+        </div>
+      </div>
+
+      <div class="prog-item">
+        <div class="prog-hd">
+          <span class="prog-lbl">🟡 Orlando</span>
+          <span class="prog-val">15,1%</span>
+        </div>
+        <div class="prog-track">
+          <div class="prog-fill" data-width="77"></div>
+        </div>
+      </div>
+
+      <div class="prog-item">
+        <div class="prog-hd">
+          <span class="prog-lbl">🟡 Winter Park</span>
+          <span class="prog-val">14,5%</span>
+        </div>
+        <div class="prog-track">
+          <div class="prog-fill" data-width="66"></div>
+        </div>
+      </div>
+
+      <div class="prog-item">
+        <div class="prog-hd">
+          <span class="prog-lbl">🟡 Kissimmee</span>
+          <span class="prog-val">14,4%</span>
+        </div>
+        <div class="prog-track">
+          <div class="prog-fill" data-width="64"></div>
+        </div>
+      </div>
+
+      <div class="prog-item">
+        <div class="prog-hd">
+          <span class="prog-lbl">🟢 Sanford</span>
+          <span class="prog-val">13,9%</span>
+        </div>
+        <div class="prog-track">
+          <div class="prog-fill" data-width="55" style="background:linear-gradient(90deg,#10B981,#34D399);"></div>
+        </div>
+      </div>
+
+    </div>
+
+    <!-- Insight card -->
+    <div class="an d4" style="margin-top:24px;">
+      <div class="gc" style="padding:18px 22px;">
+        <div style="font-size:13px;color:var(--t2);line-height:1.55;">
+          <strong style="color:var(--yellow);">Insight:</strong>
+          Altamonte Springs lidera com 16,2% de missing rate — 1,2 p.p. acima da média regional de 15%.
+          A variação entre cidades sugere fatores operacionais locais além de comportamento individual.
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════
+     SLIDE 7 · DASHBOARD EM PRODUÇÃO
+═══════════════════════════════════════════════════════════ -->
+<div class="slide" data-slide="7">
+  <div class="mesh">
+    <div class="blob" style="width:420px;height:420px;top:-100px;right:10%;background:radial-gradient(circle,#0071CE 0%,transparent 70%);animation-delay:0s;"></div>
+    <div class="blob" style="width:360px;height:360px;bottom:-80px;left:-40px;background:radial-gradient(circle,#003695 0%,transparent 70%);animation-delay:2s;"></div>
+  </div>
+
+  <div class="sc">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:44px;" class="an">
+      <span class="tag">Produto Final</span>
+      <span class="snum">07 / 08</span>
+    </div>
+
+    <div class="an d1" style="margin-bottom:26px;">
+      <div class="h2">O dashboard<br>em produção</div>
+    </div>
+
+    <!-- Dashboard mockup -->
+    <div class="dash an d2" style="margin-bottom:26px;">
+      <div class="dash-bar-top">
+        <div class="dot"></div><div class="dot"></div><div class="dot"></div>
+        <span class="dash-url">walmart-delivery-fraud-detection.streamlit.app</span>
+      </div>
+      <div class="dash-body">
+        <div class="dash-kpis">
+          <div class="dk"><div class="dk-v">10K</div><div class="dk-l">Orders</div></div>
+          <div class="dk"><div class="dk-v">15%</div><div class="dk-l">Missing Rate</div></div>
+          <div class="dk"><div class="dk-v">$517K</div><div class="dk-l">Exposure</div></div>
+        </div>
+        <div class="dash-chart">
+          <div class="db" style="height:42%;background:linear-gradient(180deg,#0071CE,#003695);"></div>
+          <div class="db" style="height:53%;background:linear-gradient(180deg,#0071CE,#003695);"></div>
+          <div class="db" style="height:67%;background:linear-gradient(180deg,#EF4444,#7F1D1D);"></div>
+          <div class="db" style="height:57%;background:linear-gradient(180deg,#0071CE,#003695);"></div>
+          <div class="db" style="height:71%;background:linear-gradient(180deg,#F59E0B,#78350F);"></div>
+          <div class="db" style="height:47%;background:linear-gradient(180deg,#0071CE,#003695);"></div>
+          <div class="db" style="height:62%;background:linear-gradient(180deg,#0071CE,#003695);"></div>
+          <div class="db" style="height:52%;background:linear-gradient(180deg,#0071CE,#003695);"></div>
+          <div class="db" style="height:77%;background:linear-gradient(180deg,#F59E0B,#78350F);"></div>
+          <div class="db" style="height:57%;background:linear-gradient(180deg,#0071CE,#003695);"></div>
+          <div class="db" style="height:46%;background:linear-gradient(180deg,#0071CE,#003695);"></div>
+          <div class="db" style="height:41%;background:linear-gradient(180deg,#0071CE,#003695);"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 9 modules -->
+    <div class="an d3" style="display:flex;flex-direction:column;gap:14px;">
+      <div style="font-size:12px;font-weight:700;letter-spacing:3px;text-transform:uppercase;color:var(--t3);">
+        9 módulos analíticos
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+        <div style="display:flex;align-items:center;gap:10px;">
+          <span style="color:var(--yellow);font-size:15px;font-weight:700;">→</span>
+          <span style="font-size:13px;color:var(--t2);">Overview + Monitor (alertas em tempo real)</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;">
+          <span style="color:var(--yellow);font-size:15px;font-weight:700;">→</span>
+          <span style="font-size:13px;color:var(--t2);">Drivers + Customers (perfis de risco)</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;">
+          <span style="color:var(--yellow);font-size:15px;font-weight:700;">→</span>
+          <span style="font-size:13px;color:var(--t2);">Geographic + Product Analysis</span>
+        </div>
+        <div style="display:flex;align-items:center;gap:10px;">
+          <span style="color:var(--yellow);font-size:15px;font-weight:700;">→</span>
+          <span style="font-size:13px;color:var(--t2);">Patterns + Model Performance + Methodology</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="an d4" style="margin-top:22px;">
+      <div class="pills">
+        <span class="pill g">Live Demo ↗</span>
+        <span class="pill b">Streamlit Cloud</span>
+        <span class="pill y">MLflow Tracking</span>
+        <span class="pill">Drift Detection</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════════════════════════
+     SLIDE 8 · CTA
+═══════════════════════════════════════════════════════════ -->
+<div class="slide" data-slide="8">
+  <canvas class="ptcl" id="ptcl8" width="1080" height="1350"></canvas>
+  <div class="mesh">
+    <div class="blob" style="width:520px;height:520px;bottom:-90px;left:-90px;background:radial-gradient(circle,#0071CE 0%,transparent 70%);animation-delay:0s;"></div>
+    <div class="blob" style="width:440px;height:440px;top:-110px;right:-70px;background:radial-gradient(circle,#FFC220 0%,transparent 70%);animation-delay:2.5s;"></div>
+    <div class="blob" style="width:360px;height:360px;top:42%;left:26%;background:radial-gradient(circle,#003695 0%,transparent 70%);animation-delay:5s;opacity:.08;"></div>
+  </div>
+
+  <div class="sc">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:auto;" class="an">
+      <span class="tag">Conclusão</span>
+      <span class="snum">08 / 08</span>
+    </div>
+
+    <div style="display:flex;flex-direction:column;gap:34px;margin-bottom:44px;">
+      <div class="an d1">
+        <div class="acc-line"></div>
+        <div class="h1" style="font-size:50px;line-height:1.08;">
+          Anomalias são<br>padrões que ainda<br>não têm nome.
+        </div>
+      </div>
+
+      <div class="an d2">
+        <div class="gc">
+          <div class="cta-q">
+            Em detecção de fraude logística, você priorizaria <strong style="color:var(--yellow);">Recall</strong>
+            ou <strong style="color:var(--yellow);">Precision</strong> no modelo? Me conta nos comentários. 👇
+          </div>
+        </div>
+      </div>
+
+      <div class="an d3" style="display:flex;flex-direction:column;gap:18px;">
+        <div>
+          <div style="font-size:12px;font-weight:700;letter-spacing:3px;text-transform:uppercase;color:var(--t3);margin-bottom:9px;">Repositório</div>
+          <div style="font-size:15px;color:var(--yellow);font-weight:700;letter-spacing:-.01em;">
+            github.com/Anotther/walmart-delivery-fraud-detection
+          </div>
+        </div>
+        <div class="div"></div>
+        <div>
+          <div style="font-size:22px;font-weight:800;color:var(--t1);">Leonardo</div>
+          <div style="font-size:13px;color:var(--t2);margin-top:3px;">Data Science · Machine Learning · Python</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Hashtags -->
+    <div class="an d4">
+      <div class="pills">
+        <span class="pill">#DataScience</span>
+        <span class="pill">#MachineLearning</span>
+        <span class="pill">#Python</span>
+      </div>
+    </div>
+  </div>
+</div>
+
+</div><!-- /track -->
+</div><!-- /wrap -->
+
+<!-- ── DOTS ──────────────────────────────────────────────────── -->
+<div class="dots" id="dots"></div>
+
+<!-- ═══════════════════════════════════════════════════════════
+     JAVASCRIPT
+═══════════════════════════════════════════════════════════ -->
+<script>
+/* ── Carousel ──────────────────────────────────────────── */
+let cur = 0;
+const slides = document.querySelectorAll('.slide');
+const track  = document.getElementById('track');
+const count  = document.getElementById('slideCount');
+const dotsEl = document.getElementById('dots');
+const total  = slides.length;
+
+/* Build dot buttons */
+for (let i = 0; i < total; i++) {
+  const b = document.createElement('button');
+  b.className = 'dot-btn' + (i === 0 ? ' on' : '');
+  b.setAttribute('aria-label', `Slide ${i + 1}`);
+  b.addEventListener('click', () => goTo(i));
+  dotsEl.appendChild(b);
+}
+
+function syncDots() {
+  dotsEl.querySelectorAll('.dot-btn').forEach((b, i) => {
+    b.classList.toggle('on', i === cur);
+  });
+}
+
+function goTo(idx) {
+  if (idx < 0 || idx >= total) return;
+  slides[cur].classList.remove('active');
+  cur = idx;
+  track.style.transform = `translateX(-${cur * 1080}px)`;
+  count.textContent = `${cur + 1} / ${total}`;
+  syncDots();
+  // Short delay so transform starts first
+  requestAnimationFrame(() => {
+    slides[cur].classList.add('active');
+    animateBars(slides[cur]);
+    animateCounters(slides[cur]);
+  });
+}
+
+document.addEventListener('keydown', e => {
+  if (e.key === 'ArrowRight') { e.preventDefault(); goTo(cur + 1); }
+  if (e.key === 'ArrowLeft')  { e.preventDefault(); goTo(cur - 1); }
+});
+
+/* Touch / swipe */
+let tx0 = 0;
+document.querySelector('.wrap').addEventListener('touchstart', e => { tx0 = e.touches[0].clientX; }, { passive: true });
+document.querySelector('.wrap').addEventListener('touchend',   e => {
+  const dx = e.changedTouches[0].clientX - tx0;
+  if (Math.abs(dx) > 50) goTo(dx < 0 ? cur + 1 : cur - 1);
+});
+
+/* ── Progress Bars ─────────────────────────────────────── */
+function animateBars(slide) {
+  slide.querySelectorAll('.prog-fill').forEach(bar => {
+    const w = bar.dataset.width;
+    if (w) {
+      bar.style.width = '0%';                              // reset so re-visits re-animate
+      setTimeout(() => { bar.style.width = w + '%'; }, 320);
+    }
+  });
+}
+
+/* ── Counter Animation ─────────────────────────────────── */
+function animateCounters(slide) {
+  slide.querySelectorAll('[data-count]').forEach(el => {
+    if (el.dataset.rafId) cancelAnimationFrame(parseInt(el.dataset.rafId)); // avoid overlapping loops
+
+    const target   = parseInt(el.dataset.count);
+    const suffix   = el.dataset.suffix || '';
+    const duration = 1300;
+    const t0       = performance.now();
+
+    const fmt = n => target >= 1000 ? n.toLocaleString('pt-BR') : String(n);
+
+    function tick(now) {
+      const p = Math.min((now - t0) / duration, 1);
+      const e = 1 - Math.pow(1 - p, 3);            // ease-out-cubic
+      el.textContent = fmt(Math.round(target * e)) + suffix;
+      if (p < 1) {
+        el.dataset.rafId = requestAnimationFrame(tick);
+      } else {
+        delete el.dataset.rafId;
+      }
+    }
+    el.dataset.rafId = requestAnimationFrame(tick);
+  });
+}
+
+/* ── Particle Canvas ───────────────────────────────────── */
+function initParticles(id) {
+  const canvas = document.getElementById(id);
+  if (!canvas) return;
+  const ctx = canvas.getContext('2d');
+  const slideEl = canvas.closest('.slide');
+
+  const pts = Array.from({ length: 70 }, () => ({
+    x:  Math.random() * 1080,
+    y:  Math.random() * 1350,
+    r:  Math.random() * 1.8 + 0.4,
+    vx: (Math.random() - .5) * .38,
+    vy: (Math.random() - .5) * .38,
+    a:  Math.random() * .35 + .08,
+    hue: Math.random() > .6 ? 210 : 195,   // blue range
+  }));
+
+  function draw() {
+    // Only paint when the parent slide is visible — saves CPU/GPU on inactive slides
+    if (slideEl && slideEl.classList.contains('active')) {
+      ctx.clearRect(0, 0, 1080, 1350);
+      pts.forEach(p => {
+        p.x += p.vx; p.y += p.vy;
+        if (p.x < 0) p.x = 1080; if (p.x > 1080) p.x = 0;
+        if (p.y < 0) p.y = 1350; if (p.y > 1350) p.y = 0;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+        ctx.fillStyle = `hsla(${p.hue},90%,60%,${p.a})`;
+        ctx.fill();
+      });
+    }
+    requestAnimationFrame(draw);
+  }
+  draw();
+}
+
+initParticles('ptcl1');
+initParticles('ptcl8');
+
+/* Init first slide */
+goTo(0);
+</script>
+</body>
+</html>
