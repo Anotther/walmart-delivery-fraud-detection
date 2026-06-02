@@ -77,6 +77,10 @@ A multi-page analytics platform with 9 specialized modules:
   <img src="https://img.shields.io/badge/View%20Dashboard-FF4B4B?style=for-the-badge&logo=streamlit&logoColor=white" alt="View Dashboard"/>
 </a>
 &nbsp;&nbsp;
+<a href="https://anotther.github.io/walmart-delivery-fraud-detection/diagram.html">
+  <img src="https://img.shields.io/badge/System%20Diagrams-004C91?style=for-the-badge&logo=diagrams.net&logoColor=white" alt="System Diagrams"/>
+</a>
+&nbsp;&nbsp;
 <a href="https://anotther.github.io/walmart-delivery-fraud-detection/Project%20Walmart.pdf">
   <img src="https://img.shields.io/badge/Executive%20Presentation%20PDF-0052CC?style=for-the-badge&logo=adobeacrobatreader&logoColor=white" alt="Executive Presentation PDF"/>
 </a>
@@ -369,6 +373,7 @@ docker-compose up -d
 
 ## Documentation
 
+- **[System Diagrams](https://anotther.github.io/walmart-delivery-fraud-detection/diagram.html)** - Interactive diagrams: system overview, data architecture, ML pipeline, and tech stack
 - **[DEPLOY.md](DEPLOY.md)** - Deployment guide for Streamlit Cloud
 - **[notebooks/](notebooks/)** - Detailed analysis documentation
 - **[dashboard/ANATOMY.md](dashboard/ANATOMY.md)** - Dashboard structure
