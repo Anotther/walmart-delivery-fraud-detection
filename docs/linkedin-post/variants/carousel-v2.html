@@ -103,12 +103,8 @@ body {
   width: var(--sw);
   min-width: var(--sw);
   height: var(--sh);
-  /* "Analyst Grid" direction (ranked #1) — subtle graph-paper texture
-     on a soft light base; reads like an analytics tool, brand-safe. */
-  background-color: #F4F7FB;
-  background-image:
-    repeating-linear-gradient(0deg,  rgba(0,76,145,.05) 0 1px, transparent 1px 44px),
-    repeating-linear-gradient(90deg, rgba(0,76,145,.05) 0 1px, transparent 1px 44px);
+  /* soft, minimal texture via a gentle radial gradient — no dots */
+  background: radial-gradient(125% 90% at 50% -8%, var(--bg-soft) 0%, #EEF2F8 52%, var(--bg-mute) 100%);
   display: flex;
   flex-direction: column;
   padding: var(--pad);
@@ -123,7 +119,7 @@ body {
   position: absolute;
   top: 0; left: 0; right: 0;
   height: 5px;
-  background: repeating-linear-gradient(90deg, var(--blue-dark) 0 18px, var(--blue-lt) 18px 36px);
+  background: linear-gradient(90deg, var(--blue-dark) 0%, var(--blue-lt) 100%);
 }
 
 /* ── SLIDE STRUCTURE: head (fixed) · body (fills) · foot (fixed) ───── */
@@ -166,12 +162,10 @@ body {
 
 /* ── TYPOGRAPHY ───────────────────────────────────────────────────── */
 .h1 {
-  font-size: 66px; font-weight: 900;
-  line-height: 1.03; letter-spacing: -0.04em;
+  font-size: 64px; font-weight: 900;
+  line-height: 1.03; letter-spacing: -0.035em;
   color: var(--t1);
 }
-/* tabular, lining numerals keep all the data figures vertically aligned */
-.h1, .h2, .kpi-val, .prog-pct, .kpi-desc { font-feature-settings: "tnum" 1, "lnum" 1; }
 .h2 {
   font-size: 47px; font-weight: 900;
   line-height: 1.07; letter-spacing: -0.028em;
@@ -193,7 +187,7 @@ body {
 .card {
   background: var(--card);
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: 14px;
   padding: 26px 28px;
   box-shadow: var(--shadow);
 }
@@ -201,14 +195,14 @@ body {
   background: var(--card);
   border: 1px solid var(--border);
   border-left: 4px solid var(--yellow);
-  border-radius: 0 6px 6px 0;
+  border-radius: 0 14px 14px 0;
   padding: 22px 26px;
   box-shadow: var(--shadow);
 }
 .card-b {
   background: var(--blue-soft);
   border: 1px solid #CFE0F4;
-  border-radius: 6px;
+  border-radius: 14px;
   padding: 22px 26px;
 }
 
@@ -218,7 +212,7 @@ body {
   display: inline-block;
   font-size: 12px; font-weight: 600;
   padding: 7px 15px;
-  border-radius: 6px;
+  border-radius: 9999px;
   border: 1px solid var(--border-md);
   color: var(--t2);
   background: var(--card);
@@ -232,7 +226,7 @@ body {
   background: var(--card);
   border: 1px solid var(--border);
   border-top: 4px solid var(--blue-lt);
-  border-radius: 6px;
+  border-radius: 14px;
   padding: 30px 28px;
   box-shadow: var(--shadow);
   display: flex; flex-direction: column;
@@ -295,6 +289,21 @@ body {
   .track, .dot, .nav-btn { transition: none; }
 }
 
+</style>
+<style>
+/* V2 — Soft Elevated · rounded white cards floating with depth, yellow-led */
+:root {
+  --bg-page:#D2DBE8;
+  --shadow:0 2px 6px rgba(16,33,66,.06), 0 18px 40px rgba(16,33,66,.10);
+  --shadow-lg:0 4px 10px rgba(16,33,66,.07), 0 28px 60px rgba(16,33,66,.13);
+}
+.slide { background:radial-gradient(130% 100% at 50% -10%, #FFFFFF 0%, #EEF2F8 50%, #E2E9F3 100%); }
+.slide::before { height:6px; }
+.card, .card-b { border-radius:18px; }
+.card-y { border-radius:0 18px 18px 0; }
+.kpi { border-radius:18px; border-top-width:5px; }
+.badge { border-radius:9999px; }
+.accent { height:5px; width:60px; }
 </style>
 </head>
 <body>
@@ -513,7 +522,7 @@ body {
   <div class="s-body">
     <div class="h2" style="margin-bottom:30px;">O sistema em números</div>
 
-    <div style="display:grid; grid-template-columns:1fr 1fr; gap:18px; flex:1; align-content:center;">
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:18px; flex:1;">
       <div class="kpi">
         <div class="kpi-lbl">Pedidos Analisados</div>
         <div class="kpi-val">10.000</div>
