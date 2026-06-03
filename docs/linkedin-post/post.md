@@ -26,7 +26,7 @@ Stack: Python · scikit-learn · MLflow · Streamlit · PostgreSQL · Plotly
 
 Em detecção de fraude logística, você priorizaria Recall ou Precision? Me conta nos comentários.
 
-#DataScience #MachineLearning #Python
+#DataScience #MachineLearning #Python #FraudDetection #DataAnalytics
 
 ---
 
@@ -35,13 +35,13 @@ Em detecção de fraude logística, você priorizaria Recall ou Precision? Me co
 **Formato recomendado:** PDF carrossel (8 slides) + texto acima
 **Dimensões dos slides:** 1080 × 1350px (proporção 4:5)
 **Arquivo do carrossel:** `docs/linkedin-post/carousel.html` → exportar como PDF
-**Hashtags:** #DataScience #MachineLearning #Python
+**Hashtags:** #DataScience #MachineLearning #Python #FraudDetection #DataAnalytics
 
 ## Como exportar o carrossel como PDF
 
 1. Abrir `docs/linkedin-post/carousel.html` no Chrome
 2. `Ctrl+P` → Salvar como PDF
-3. Configurações: sem margens, escala 100%, orientação retrato ou tamanho customizado 1080×1350px
-4. Ou usar `Ctrl+Shift+P` → "print" no DevTools para cada slide
+3. Configurações: **Margens: Nenhuma** e **Escala: 100%**. A regra `@page { size: 1080px 1350px }` já fixa as dimensões 4:5 — não é preciso ajustar orientação manualmente.
+4. Conferir no preview que cada slide ocupa uma página inteira, sem cortes.
 
-**Dica:** Puppeteer/playwright pode automatizar a exportação se necessário.
+**Dica:** Para exportação automatizada e pixel-perfect, use Puppeteer/Playwright com `page.pdf({ width: '1080px', height: '1350px', printBackground: true })`.
