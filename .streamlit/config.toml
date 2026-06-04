@@ -10,6 +10,9 @@ font = "sans serif"
 showSidebarNavigation = false
 showErrorDetails = "none"
 
+[ui]
+githubLink = "https://github.com/anotther/walmart-delivery-fraud-detection"
+
 [server]
 enableCORS = true
 enableXsrfProtection = true
