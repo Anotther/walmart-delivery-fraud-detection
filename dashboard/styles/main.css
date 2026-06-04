@@ -134,6 +134,42 @@ body {
   fill: #ffffff !important;
 }
 
+/* Toolbar action buttons - white background */
+[data-testid="stHeader"] [data-testid="stToolbarActions"] button,
+[data-testid="stHeader"] [data-testid="stToolbarActions"] a {
+  background-color: #ffffff !important;
+  border: 1px solid rgba(255, 255, 255, 0.5) !important;
+  border-radius: 6px !important;
+  padding: 4px 8px !important;
+}
+
+[data-testid="stHeader"] [data-testid="stToolbarActions"] button svg,
+[data-testid="stHeader"] [data-testid="stToolbarActions"] button *,
+[data-testid="stHeader"] [data-testid="stToolbarActions"] a svg,
+[data-testid="stHeader"] [data-testid="stToolbarActions"] a * {
+  color: #003695 !important;
+  fill: #003695 !important;
+}
+
+/* Hide share and star/favorite buttons */
+button[aria-label*="Share" i],
+button[aria-label*="share" i],
+button[title*="Share" i],
+[data-testid="stShareButton"],
+[data-testid*="share"],
+button[aria-label*="Star" i],
+button[aria-label*="star" i],
+button[aria-label*="Favorite" i],
+button[aria-label*="favorite" i],
+button[aria-label*="Starred" i],
+button[title*="Star" i],
+button[title*="Favorite" i],
+[data-testid="stStarButton"],
+[data-testid*="star"],
+[data-testid*="favorite"] {
+  display: none !important;
+}
+
 /* Typography Overrides */
 h1,
 h2,
