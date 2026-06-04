@@ -88,10 +88,18 @@ A multi-page analytics platform with 9 specialized modules:
 <a href="https://anotther.github.io/walmart-delivery-fraud-detection/presentation.html">
   <img src="https://img.shields.io/badge/Operational%20Presentation-2EA44F?style=for-the-badge&logo=html5&logoColor=white" alt="Operational Presentation"/>
 </a>
+&nbsp;&nbsp;
+<a href="https://anotther.github.io/walmart-delivery-fraud-detection/presentation.pdf">
+  <img src="https://img.shields.io/badge/Presentation%20PDF-DC2626?style=for-the-badge&logo=adobeacrobatreader&logoColor=white" alt="Presentation PDF"/>
+</a>
+&nbsp;&nbsp;
+<a href="https://anotther.github.io/walmart-delivery-fraud-detection/linkedin-post/carousel.html">
+  <img src="https://img.shields.io/badge/LinkedIn%20Post%20HTML-0A66C2?style=for-the-badge&logo=linkedin&logoColor=white" alt="LinkedIn Post HTML"/>
+</a>
 
 </div>
 
-The executive presentation is the PDF version prepared for stakeholder review. The operational presentation is the HTML slide deck published with GitHub Pages for day-to-day area follow-up and recurring team discussions.
+The executive presentation is the PDF version prepared for stakeholder review. The operational presentation is the HTML slide deck with animations, published via GitHub Pages. The corresponding `presentation.pdf` is auto-generated via GitHub Actions on every change to `presentation.html`.
 
 <div align="center">
 
@@ -374,6 +382,9 @@ docker-compose up -d
 ## Documentation
 
 - **[System Diagrams](https://anotther.github.io/walmart-delivery-fraud-detection/diagram.html)** - Interactive diagrams: system overview, data architecture, ML pipeline, and tech stack
+- **[Operational Presentation](https://anotther.github.io/walmart-delivery-fraud-detection/presentation.html)** - HTML slide deck with animations
+- **[Presentation PDF](https://anotther.github.io/walmart-delivery-fraud-detection/presentation.pdf)** - Auto-generated PDF for sharing/printing
+- **[LinkedIn Post HTML](https://anotther.github.io/walmart-delivery-fraud-detection/linkedin-post/carousel.html)** - Carousel HTML used for the LinkedIn post
 - **[DEPLOY.md](DEPLOY.md)** - Deployment guide for Streamlit Cloud
 - **[notebooks/](notebooks/)** - Detailed analysis documentation
 - **[dashboard/ANATOMY.md](dashboard/ANATOMY.md)** - Dashboard structure
