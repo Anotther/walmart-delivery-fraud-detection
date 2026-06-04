@@ -99,7 +99,7 @@ A multi-page analytics platform with 9 specialized modules:
 
 </div>
 
-The executive presentation is the PDF version prepared for stakeholder review. The operational presentation is the HTML slide deck with animations, published via GitHub Pages. The PDF is auto-generated via GitHub Actions on every change to `presentation.html`.
+The executive presentation is the PDF version prepared for stakeholder review. The operational presentation is the HTML slide deck with animations, published via GitHub Pages. The corresponding `presentation.pdf` is auto-generated via GitHub Actions on every change to `presentation.html`.
 
 <div align="center">
 
