@@ -408,6 +408,124 @@ ol.clean li .n {
 .badge-high { background: #FEE2E2; color: #DC2626; }
 .badge-med  { background: #FEF3C7; color: #D97706; }
 
+/* ══ animations (screen only) ═══════════════════════════ */
+@keyframes slide-up {
+  from { opacity: 0; transform: translateY(14px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+@keyframes fade-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes bar-grow {
+  from { transform: scaleX(0); transform-origin: left; }
+  to   { transform: scaleX(1); transform-origin: left; }
+}
+@keyframes stat-pop {
+  0%   { opacity: 0; transform: scale(0.85); }
+  65%  { transform: scale(1.04); }
+  100% { opacity: 1; transform: scale(1); }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .slide.active {
+    animation: fade-in 0.28s ease both;
+  }
+  .slide.active .content > * {
+    animation: slide-up 0.38s ease both;
+    opacity: 0;
+  }
+  .slide.active .content > *:nth-child(1) { animation-delay: 0.06s; }
+  .slide.active .content > *:nth-child(2) { animation-delay: 0.13s; }
+  .slide.active .content > *:nth-child(3) { animation-delay: 0.20s; }
+  .slide.active .content > *:nth-child(4) { animation-delay: 0.27s; }
+  .slide.active .content > *:nth-child(5) { animation-delay: 0.34s; }
+  .slide.active .content > *:nth-child(6) { animation-delay: 0.41s; }
+
+  .slide.active .stat-val,
+  .slide.active .big-stat,
+  .slide.active .mc-val {
+    animation: stat-pop 0.45s cubic-bezier(.22,1,.36,1) both;
+    animation-delay: 0.25s;
+  }
+
+  .slide.active::before {
+    animation: bar-grow 0.55s cubic-bezier(.22,1,.36,1) both;
+  }
+
+  .slide.active .toc-item {
+    animation: slide-up 0.35s ease both;
+    opacity: 0;
+  }
+  .slide.active .toc-item:nth-child(1) { animation-delay: 0.08s; }
+  .slide.active .toc-item:nth-child(2) { animation-delay: 0.14s; }
+  .slide.active .toc-item:nth-child(3) { animation-delay: 0.20s; }
+  .slide.active .toc-item:nth-child(4) { animation-delay: 0.26s; }
+  .slide.active .toc-item:nth-child(5) { animation-delay: 0.32s; }
+  .slide.active .toc-item:nth-child(6) { animation-delay: 0.38s; }
+  .slide.active .toc-item:nth-child(7) { animation-delay: 0.44s; }
+  .slide.active .toc-item:nth-child(8) { animation-delay: 0.50s; }
+
+  .slide.active .action {
+    animation: slide-up 0.35s ease both;
+    opacity: 0;
+  }
+  .slide.active .action:nth-of-type(1) { animation-delay: 0.10s; }
+  .slide.active .action:nth-of-type(2) { animation-delay: 0.20s; }
+  .slide.active .action:nth-of-type(3) { animation-delay: 0.30s; }
+
+  .slide.active .metric-card {
+    animation: slide-up 0.38s ease both;
+    opacity: 0;
+  }
+  .slide.active .metric-card:nth-child(1) { animation-delay: 0.10s; }
+  .slide.active .metric-card:nth-child(2) { animation-delay: 0.18s; }
+  .slide.active .metric-card:nth-child(3) { animation-delay: 0.26s; }
+  .slide.active .metric-card:nth-child(4) { animation-delay: 0.34s; }
+
+  .slide.active .alert-card {
+    animation: slide-up 0.35s ease both;
+    opacity: 0;
+  }
+  .slide.active .alert-card:nth-of-type(1) { animation-delay: 0.12s; }
+  .slide.active .alert-card:nth-of-type(2) { animation-delay: 0.22s; }
+  .slide.active .alert-card:nth-of-type(3) { animation-delay: 0.32s; }
+}
+
+/* ══ print / PDF export ══════════════════════════════════ */
+@media print {
+  html, body {
+    overflow: visible;
+    height: auto;
+    background: #E9EFF8;
+    background-image: url("data:image/svg+xml,%3Csvg width='28' height='28' xmlns='http://www.w3.org/2000/svg'%3E%3Ccircle cx='14' cy='14' r='1.2' fill='%23004C91' fill-opacity='0.15'/%3E%3C/svg%3E");
+  }
+  #deck { position: static; width: 100%; height: auto; }
+  #counter { display: none; }
+
+  .slide {
+    display: flex !important;
+    position: relative !important;
+    width: 100%;
+    height: 100vh;
+    page-break-after: always;
+    break-after: page;
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+  }
+  .slide:last-child {
+    page-break-after: avoid;
+    break-after: avoid;
+  }
+  .slide * {
+    animation: none !important;
+    opacity: 1 !important;
+    transform: none !important;
+    transition: none !important;
+  }
+}
+
 </style>
 </head>
 <body>
