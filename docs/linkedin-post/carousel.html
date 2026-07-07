@@ -252,26 +252,61 @@ body {
 .prog-fill.lo { background: #9CC0E8; }
 .prog-pct   { font-size: 13.5px; font-weight: 700; color: var(--blue-dark); width: 46px; text-align: right; flex-shrink: 0; }
 
-/* ── PIPELINE (continuous line) ───────────────────────────────────── */
-.steps { position: relative; display: flex; flex-direction: column; justify-content: space-between; flex: 1; }
+/* ── PIPELINE (timeline rail + station cards) ─────────────────────── */
+.steps {
+  position: relative;
+  display: flex; flex-direction: column;
+  justify-content: space-between; gap: 14px;
+  flex: 1;
+  padding-left: 64px;
+}
+/* gradient "progress spine" — reads as a flow from ingestion to delivery */
 .steps::before {
   content: '';
   position: absolute;
-  left: 20px; top: 22px; bottom: 22px;
-  width: 2px; background: var(--border-md);
+  left: 25px; top: 26px; bottom: 26px;
+  width: 3px; border-radius: 3px;
+  background: linear-gradient(180deg,
+    var(--blue-lt) 0%, var(--blue) 42%, var(--blue-dark) 72%, var(--yellow) 100%);
 }
-.step       { display: flex; align-items: center; gap: 20px; position: relative; z-index: 1; }
-.step-num   {
-  width: 40px; height: 40px; border-radius: 50%;
-  background: var(--blue-dark); color: #fff;
-  font-size: 15px; font-weight: 800;
+.step {
+  position: relative;
+  display: flex; align-items: center; gap: 16px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 15px 22px;
+  box-shadow: var(--shadow);
+  transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease;
+}
+.step:hover { transform: translateX(5px); box-shadow: var(--shadow-lg); border-color: var(--border-md); }
+.step-num {
+  position: absolute;
+  left: -62px; top: 50%; transform: translateY(-50%);
+  width: 46px; height: 46px; border-radius: 50%;
+  background: var(--blue); color: #fff;
+  font-size: 16px; font-weight: 800;
   display: flex; align-items: center; justify-content: center;
-  flex-shrink: 0;
-  box-shadow: 0 0 0 5px var(--bg-soft);
+  z-index: 2;
+  box-shadow: 0 0 0 5px var(--bg-soft), 0 5px 14px rgba(0,54,149,.28);
 }
-.step-num.y { background: var(--yellow); color: var(--t1); }
-.step-title { font-size: 16px; font-weight: 700; color: var(--t1); margin-bottom: 1px; }
+/* colour the nodes along the same blue→yellow progression as the spine */
+.step-num.s1 { background: var(--blue-lt); }
+.step-num.s2, .step-num.s3 { background: var(--blue); }
+.step-num.s4, .step-num.s5 { background: var(--blue-dark); }
+.step-num.y  { background: var(--yellow); color: var(--t1);
+  box-shadow: 0 0 0 5px var(--bg-soft), 0 5px 14px rgba(255,194,32,.45); }
+.step-main  { flex: 1; min-width: 0; }
+.step-title { font-size: 16.5px; font-weight: 700; color: var(--t1); margin-bottom: 2px; }
 .step-sub   { font-size: 12.5px; color: var(--t3); line-height: 1.4; }
+.step-tag {
+  flex-shrink: 0; white-space: nowrap;
+  font-size: 9.5px; font-weight: 700; letter-spacing: 1.5px; text-transform: uppercase;
+  color: var(--blue); background: var(--blue-soft);
+  border: 1px solid #CFE0F4; border-radius: 999px;
+  padding: 5px 12px;
+}
+.step-tag.y { color: #8A6608; background: #FFF6DE; border-color: #F5DFA0; }
 
 /* ── FEATURE ROWS (no dot bullets) ────────────────────────────────── */
 .feat {
@@ -288,7 +323,7 @@ body {
   .wrap { width: auto; overflow: visible; border-radius: 0; box-shadow: none; }
   .track { flex-direction: column; transform: none !important; }
   .slide { page-break-after: always; break-after: page; }
-  .card, .card-y, .kpi, .badge, .nav-btn { box-shadow: none; }
+  .card, .card-y, .kpi, .badge, .nav-btn, .step { box-shadow: none; }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -405,46 +440,52 @@ body {
 
     <div class="steps">
       <div class="step">
-        <div class="step-num">1</div>
-        <div>
+        <div class="step-num s1">1</div>
+        <div class="step-main">
           <div class="step-title">Dados Brutos</div>
           <div class="step-sub">10.000 pedidos, 1.247 motoristas e 1.239 clientes em 5 datasets</div>
         </div>
+        <span class="step-tag">Ingestão</span>
       </div>
       <div class="step">
-        <div class="step-num">2</div>
-        <div>
+        <div class="step-num s2">2</div>
+        <div class="step-main">
           <div class="step-title">ETL Pipeline</div>
           <div class="step-sub">Pandas e SQLAlchemy para parse de moeda, datas e joins relacionais</div>
         </div>
+        <span class="step-tag">Transformação</span>
       </div>
       <div class="step">
-        <div class="step-num">3</div>
-        <div>
+        <div class="step-num s3">3</div>
+        <div class="step-main">
           <div class="step-title">Feature Engineering</div>
           <div class="step-sub">Missing rate, padrão histórico e perfis temporais por entidade</div>
         </div>
+        <span class="step-tag">Transformação</span>
       </div>
       <div class="step">
-        <div class="step-num">4</div>
-        <div>
+        <div class="step-num s4">4</div>
+        <div class="step-main">
           <div class="step-title">ML Models</div>
           <div class="step-sub">Isolation Forest, K-Means (5 clusters) e DBSCAN com MLflow tracking</div>
         </div>
+        <span class="step-tag">Modelagem</span>
       </div>
       <div class="step">
-        <div class="step-num">5</div>
-        <div>
+        <div class="step-num s5">5</div>
+        <div class="step-main">
           <div class="step-title">Risk Score Engine</div>
           <div class="step-sub">Nota 0–100 por pedido, motorista e cliente, com alertas por threshold</div>
         </div>
+        <span class="step-tag">Modelagem</span>
       </div>
       <div class="step">
         <div class="step-num y">6</div>
-        <div>
+        <div class="step-main">
           <div class="step-title">Dashboard Streamlit</div>
           <div class="step-sub">9 módulos em produção com drift detection e relatórios executivos</div>
         </div>
+        <span class="step-tag y">Entrega</span>
       </div>
     </div>
   </div>
